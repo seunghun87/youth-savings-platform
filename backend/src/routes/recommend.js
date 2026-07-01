@@ -2,8 +2,9 @@ const express = require('express');
 const router = express.Router();
 const { recommendRules, validate } = require('../middleware/validate');
 const { getRecommendations } = require('../services/recommendService');
+const { recommendLimiter } = require('../middleware/rateLimiter');
 
-router.post('/', recommendRules, validate, async (req, res, next) => {
+router.post('/', recommendLimiter, recommendRules, validate, async (req, res, next) => {
   try {
     const { monthly_amount, period_months, age, personal_income, income_bracket } = req.body;
     const results = await getRecommendations({

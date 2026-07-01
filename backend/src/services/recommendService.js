@@ -1,11 +1,5 @@
 const supabase = require('./supabaseClient');
-
-// 만기 수령액 계산 (단위: 원)
-// monthly_amount는 만원 단위로 입력받음
-function calcExpectedAmount(monthly_amount, period_months, base_rate) {
-  const monthly_won = monthly_amount * 10000;
-  return Math.round(monthly_won * period_months * (1 + (base_rate / 100) * (period_months / 12)));
-}
+const { calculateMaturityAmount } = require('./calculationService');
 
 async function getRecommendations({ monthly_amount, period_months, age, personal_income, income_bracket }) {
   const { data: products, error } = await supabase
@@ -19,7 +13,8 @@ async function getRecommendations({ monthly_amount, period_months, age, personal
     age <= p.max_age &&
     period_months >= p.min_period &&
     period_months <= p.max_period &&
-    (p.income_limit === null || personal_income <= p.income_limit)
+    (p.income_limit === null || personal_income <= p.income_limit) &&
+    (p.monthly_limit === null || monthly_amount <= p.monthly_limit)
   );
 
   eligible.sort((a, b) => b.base_rate - a.base_rate);
@@ -29,7 +24,7 @@ async function getRecommendations({ monthly_amount, period_months, age, personal
     name: p.name,
     bank: p.bank,
     base_rate: Number(p.base_rate),
-    expected_amount: calcExpectedAmount(monthly_amount, period_months, p.base_rate),
+    expected_amount: calculateMaturityAmount(monthly_amount * 10000, period_months, p.base_rate),
     rank: i + 1,
     notice: p.income_limit ? `연소득 ${p.income_limit.toLocaleString()}만원 이하 조건 있음` : null,
   }));
