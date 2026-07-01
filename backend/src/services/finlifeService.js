@@ -1,44 +1,100 @@
-const axios = require('axios');
-const supabase = require('../config/database');
+const supabase = require('./supabaseClient');
 
-// 금융상품한눈에 API에서 적금 상품을 가져와 DB에 동기화
-// 실제 URL·파라미터는 인증키 발급 후 2주차에 확정
+const FINLIFE_BASE_URL = 'https://finlife.fss.or.kr/finlifeapi';
+
+async function fetchPage(apiKey, topFinGrpNo, pageNo) {
+  const url = `${FINLIFE_BASE_URL}/savingProductsSearch.json?auth=${apiKey}&topFinGrpNo=${topFinGrpNo}&pageNo=${pageNo}`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`finlife API 오류: ${res.status}`);
+  const json = await res.json();
+  if (json.result.err_cd !== '000') throw new Error(`finlife 에러: ${json.result.err_msg}`);
+  return json.result;
+}
+
+async function fetchAllProducts(apiKey) {
+  // 은행(020000), 저축은행(030300) 두 기관 조회
+  const groups = ['020000', '030300'];
+  const baseMap = {};   // fin_co_no+fin_prdt_cd → baseList 항목
+  const optionMap = {}; // fin_co_no+fin_prdt_cd → optionList 항목 배열
+
+  for (const grpNo of groups) {
+    const first = await fetchPage(apiKey, grpNo, 1);
+    const pages = [first];
+    for (let p = 2; p <= first.max_page_no; p++) {
+      pages.push(await fetchPage(apiKey, grpNo, p));
+    }
+    for (const page of pages) {
+      for (const item of page.baseList) {
+        const key = `${item.fin_co_no}_${item.fin_prdt_cd}`;
+        baseMap[key] = item;
+      }
+      for (const opt of page.optionList) {
+        const key = `${opt.fin_co_no}_${opt.fin_prdt_cd}`;
+        if (!optionMap[key]) optionMap[key] = [];
+        optionMap[key].push(opt);
+      }
+    }
+  }
+  return { baseMap, optionMap };
+}
+
+function buildProducts(baseMap, optionMap) {
+  const products = [];
+
+  for (const key of Object.keys(baseMap)) {
+    const base = baseMap[key];
+    const options = optionMap[key] || [];
+    if (options.length === 0) continue;
+
+    // 기간별 최고 기본금리 기준으로 대표 옵션 선택
+    const validOpts = options.filter(o => o.intr_rate !== null);
+    if (validOpts.length === 0) continue;
+
+    const bestRate = Math.max(...validOpts.map(o => o.intr_rate));
+    const terms = validOpts.map(o => parseInt(o.save_trm)).filter(Boolean);
+
+    products.push({
+      name: base.fin_prdt_nm,
+      bank: base.kor_co_nm,
+      base_rate: bestRate,
+      product_type: '시중',
+      min_age: 0,
+      max_age: 99,
+      income_limit: null,
+      min_period: Math.min(...terms),
+      max_period: Math.max(...terms),
+      monthly_limit: base.max_limit ? Math.round(base.max_limit / 10000) : null,
+      source: 'finlife',
+    });
+  }
+
+  return products;
+}
+
 async function syncProducts() {
   const apiKey = process.env.FINLIFE_API_KEY;
-  const baseUrl = process.env.FINLIFE_BASE_URL;
+  if (!apiKey) {
+    const err = new Error('FINLIFE_API_KEY가 .env에 설정되지 않았습니다');
+    err.status = 503;
+    throw err;
+  }
 
-  const response = await axios.get(`${baseUrl}/savingProductsSearch.json`, {
-    params: {
-      auth: apiKey,
-      topFinGrpNo: '020000', // 은행권
-      pageNo: 1,
-    },
-    timeout: 10000,
-  });
+  const { baseMap, optionMap } = await fetchAllProducts(apiKey);
+  const products = buildProducts(baseMap, optionMap);
 
-  const items = response.data?.result?.baseList ?? [];
+  if (products.length === 0) throw new Error('가져온 상품이 없습니다');
 
-  const products = items.map((item) => ({
-    name: item.fin_prdt_nm,
-    bank: item.kor_co_nm,
-    base_rate: parseFloat(item.intr_rate ?? 0),
-    period_months: parseInt(item.save_trm ?? 12, 10),
-    max_amount: null,
-    product_type: '적금',
-    min_age: null,
-    max_age: null,
-    income_limit: null,
-    source: 'api',
-    updated_at: new Date().toISOString(),
-  }));
-
-  if (products.length === 0) return 0;
-
-  const { error } = await supabase
+  // 기존 finlife 데이터 삭제 후 재삽입
+  const { error: delErr } = await supabase
     .from('savings_product')
-    .upsert(products, { onConflict: 'name,bank' });
+    .delete()
+    .eq('source', 'finlife');
+  if (delErr) throw delErr;
 
-  if (error) throw error;
+  const { error: insErr } = await supabase
+    .from('savings_product')
+    .insert(products);
+  if (insErr) throw insErr;
 
   return products.length;
 }

@@ -1,36 +1,41 @@
--- user_input: 사용자 입력
-CREATE TABLE user_input (
-  id               SERIAL PRIMARY KEY,
-  monthly_amount   INTEGER NOT NULL,
-  period_months    INTEGER NOT NULL,
-  age              INTEGER NOT NULL,
-  personal_income  INTEGER NOT NULL,
-  income_bracket   INTEGER,
-  created_at       TIMESTAMP DEFAULT NOW()
+-- 청년저축플랫폼 DB 스키마
+-- Supabase SQL Editor에서 전체 실행
+
+-- 1. 사용자 입력 테이블
+CREATE TABLE IF NOT EXISTS user_input (
+  id              uuid        DEFAULT gen_random_uuid() PRIMARY KEY,
+  monthly_amount  integer     NOT NULL,
+  period_months   integer     NOT NULL,
+  age             integer     NOT NULL,
+  personal_income integer     NOT NULL,
+  income_bracket  integer,
+  created_at      timestamptz DEFAULT now()
 );
 
--- savings_product: 금융상품 (finlife API + 수동 입력 정책상품)
-CREATE TABLE savings_product (
-  id             SERIAL PRIMARY KEY,
-  name           VARCHAR(200) NOT NULL,
-  bank           VARCHAR(100) NOT NULL,
-  base_rate      DECIMAL(5, 2) NOT NULL,
-  period_months  INTEGER,
-  max_amount     INTEGER,
-  product_type   VARCHAR(20) NOT NULL,  -- '예금' or '적금'
-  min_age        INTEGER,
-  max_age        INTEGER,
-  income_limit   INTEGER,
-  source         VARCHAR(20) NOT NULL,  -- 'api' or 'manual'
-  updated_at     TIMESTAMP DEFAULT NOW(),
-  UNIQUE (name, bank)
+-- 2. 저축 상품 테이블
+CREATE TABLE IF NOT EXISTS savings_product (
+  id           uuid           DEFAULT gen_random_uuid() PRIMARY KEY,
+  name         text           NOT NULL,
+  bank         text           NOT NULL,
+  base_rate    numeric(5,2)   NOT NULL,
+  product_type text           NOT NULL CHECK (product_type IN ('정책', '시중')),
+  min_age      integer        NOT NULL DEFAULT 0,
+  max_age      integer        NOT NULL DEFAULT 99,
+  income_limit integer,
+  min_period   integer        NOT NULL DEFAULT 1,
+  max_period   integer        NOT NULL DEFAULT 120,
+  monthly_limit integer,
+  source       text           NOT NULL CHECK (source IN ('manual', 'finlife')),
+  created_at   timestamptz    DEFAULT now()
 );
 
--- recommendation: 추천 결과
-CREATE TABLE recommendation (
-  id              SERIAL PRIMARY KEY,
-  input_id        INTEGER NOT NULL REFERENCES user_input(id),
-  product_id      INTEGER NOT NULL REFERENCES savings_product(id),
-  expected_amount INTEGER NOT NULL,
-  rank            INTEGER NOT NULL
+-- 3. 추천 결과 테이블
+CREATE TABLE IF NOT EXISTS recommendation (
+  id              uuid        DEFAULT gen_random_uuid() PRIMARY KEY,
+  user_input_id   uuid        REFERENCES user_input(id) ON DELETE CASCADE,
+  product_id      uuid        REFERENCES savings_product(id) ON DELETE CASCADE,
+  rank            integer     NOT NULL,
+  expected_amount bigint      NOT NULL,
+  notice          text,
+  created_at      timestamptz DEFAULT now()
 );
