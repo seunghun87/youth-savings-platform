@@ -14,7 +14,12 @@ const recommendRules = [
 function validate(req, res, next) {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
-    return res.status(400).json({ error: errors.array()[0].msg });
+    const all = errors.array();
+    // error: 대표 메시지(기존 응답 형식 유지), details: 필드별 전체 오류
+    return res.status(400).json({
+      error: all[0].msg,
+      details: all.map(e => ({ field: e.path, message: e.msg })),
+    });
   }
   next();
 }
