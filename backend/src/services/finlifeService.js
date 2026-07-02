@@ -7,6 +7,7 @@ async function fetchPage(apiKey, topFinGrpNo, pageNo) {
   const res = await fetch(url);
   if (!res.ok) throw new Error(`finlife API 오류: ${res.status}`);
   const json = await res.json();
+  if (!json.result) throw new Error('finlife 응답 형식 오류: result 없음');
   if (json.result.err_cd !== '000') throw new Error(`finlife 에러: ${json.result.err_msg}`);
   return json.result;
 }
@@ -19,16 +20,17 @@ async function fetchAllProducts(apiKey) {
 
   for (const grpNo of groups) {
     const first = await fetchPage(apiKey, grpNo, 1);
-    const pages = [first];
-    for (let p = 2; p <= first.max_page_no; p++) {
-      pages.push(await fetchPage(apiKey, grpNo, p));
-    }
+    const restPageNos = [];
+    for (let p = 2; p <= first.max_page_no; p++) restPageNos.push(p);
+    const rest = await Promise.all(restPageNos.map(p => fetchPage(apiKey, grpNo, p)));
+    const pages = [first, ...rest];
+
     for (const page of pages) {
-      for (const item of page.baseList) {
+      for (const item of page.baseList || []) {
         const key = `${item.fin_co_no}_${item.fin_prdt_cd}`;
         baseMap[key] = item;
       }
-      for (const opt of page.optionList) {
+      for (const opt of page.optionList || []) {
         const key = `${opt.fin_co_no}_${opt.fin_prdt_cd}`;
         if (!optionMap[key]) optionMap[key] = [];
         optionMap[key].push(opt);
@@ -43,20 +45,31 @@ function buildProducts(baseMap, optionMap) {
 
   for (const key of Object.keys(baseMap)) {
     const base = baseMap[key];
-    const options = optionMap[key] || [];
+    const rawOpts = optionMap[key] || [];
+
+    // 기간(save_trm)별로 최고 기본금리 하나만 남긴다
+    // (단리/복리, 정액/자유적립식 등으로 같은 기간에 옵션이 여러 개 존재)
+    const rateByTerm = {};
+    for (const o of rawOpts) {
+      const term = parseInt(o.save_trm, 10);
+      const rate = Number(o.intr_rate);
+      if (!Number.isInteger(term) || term <= 0 || !Number.isFinite(rate)) continue;
+      if (rateByTerm[term] === undefined || rate > rateByTerm[term]) rateByTerm[term] = rate;
+    }
+    const options = Object.keys(rateByTerm)
+      .map(t => ({ term: Number(t), rate: rateByTerm[t] }))
+      .sort((a, b) => a.term - b.term);
     if (options.length === 0) continue;
 
-    // 기간별 최고 기본금리 기준으로 대표 옵션 선택
-    const validOpts = options.filter(o => o.intr_rate !== null);
-    if (validOpts.length === 0) continue;
-
-    const bestRate = Math.max(...validOpts.map(o => o.intr_rate));
-    const terms = validOpts.map(o => parseInt(o.save_trm)).filter(Boolean);
+    const terms = options.map(o => o.term);
 
     products.push({
+      fin_co_no: base.fin_co_no,
+      fin_prdt_cd: base.fin_prdt_cd,
       name: base.fin_prdt_nm,
       bank: base.kor_co_nm,
-      base_rate: bestRate,
+      base_rate: Math.max(...options.map(o => o.rate)), // 목록 표시용 최고 기본금리
+      options,
       product_type: '시중',
       min_age: 0,
       max_age: 99,
@@ -84,17 +97,33 @@ async function syncProducts() {
 
   if (products.length === 0) throw new Error('가져온 상품이 없습니다');
 
-  // 기존 finlife 데이터 삭제 후 재삽입
-  const { error: delErr } = await supabase
+  // 자연 키(fin_co_no+fin_prdt_cd) 기준 upsert.
+  // 기존 행의 id가 유지되므로 recommendation 이력이 끊기지 않고,
+  // 중간에 실패해도 기존 데이터가 삭제된 채 남는 일이 없다.
+  const { error: upErr } = await supabase
     .from('savings_product')
-    .delete()
-    .eq('source', 'finlife');
-  if (delErr) throw delErr;
+    .upsert(products, { onConflict: 'fin_co_no,fin_prdt_cd' });
+  if (upErr) throw upErr;
 
-  const { error: insErr } = await supabase
+  // API에서 사라진(판매 종료된) 상품만 정리
+  const { data: existing, error: selErr } = await supabase
     .from('savings_product')
-    .insert(products);
-  if (insErr) throw insErr;
+    .select('id, fin_co_no, fin_prdt_cd')
+    .eq('source', 'finlife');
+  if (selErr) throw selErr;
+
+  const liveKeys = new Set(products.map(p => `${p.fin_co_no}_${p.fin_prdt_cd}`));
+  const staleIds = existing
+    .filter(row => !liveKeys.has(`${row.fin_co_no}_${row.fin_prdt_cd}`))
+    .map(row => row.id);
+
+  if (staleIds.length > 0) {
+    const { error: delErr } = await supabase
+      .from('savings_product')
+      .delete()
+      .in('id', staleIds);
+    if (delErr) throw delErr;
+  }
 
   return products.length;
 }
