@@ -3,7 +3,8 @@ services:
     name: youth-savings-backend
     runtime: node
     plan: free
-    branch: dev
+    region: singapore
+    branch: main
     rootDir: backend
     buildCommand: npm install
     startCommand: npm start
