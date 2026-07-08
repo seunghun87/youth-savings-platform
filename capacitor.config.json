@@ -1,0 +1,8 @@
+{
+  "appId": "com.sidepj.savingapp",
+  "appName": "Financial Support",
+  "webDir": "dist",
+  "android": {
+    "allowMixedContent": true
+  }
+}

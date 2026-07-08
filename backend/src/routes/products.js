@@ -1,7 +1,44 @@
 const express = require('express');
 const router = express.Router();
+const supabase = require('../services/supabaseClient');
 const { syncProducts } = require('../services/finlifeService');
 const { syncLimiter } = require('../middleware/rateLimiter');
+
+// 상품 목록 화면용. 기간별 옵션이 있으면 그중 최고금리를, 없으면 base_rate를 대표금리로 노출한다.
+function maxRate(p) {
+  if (Array.isArray(p.options) && p.options.length > 0) {
+    return Math.max(...p.options.map(o => o.rate));
+  }
+  return Number(p.base_rate);
+}
+
+router.get('/', async (req, res, next) => {
+  try {
+    const { data, error } = await supabase.from('savings_product').select('*');
+    if (error) throw error;
+
+    const products = data
+      .map(p => ({
+        id: p.id,
+        name: p.name,
+        bank: p.bank,
+        product_type: p.product_type,
+        rate: maxRate(p),
+        min_age: p.min_age,
+        max_age: p.max_age,
+        min_period: p.min_period,
+        max_period: p.max_period,
+        income_limit: p.income_limit,
+        monthly_limit: p.monthly_limit,
+        source: p.source,
+      }))
+      .sort((a, b) => b.rate - a.rate);
+
+    res.json(products);
+  } catch (err) {
+    next(err);
+  }
+});
 
 // STEP4: finlife 인증키 설정 후 사용 가능
 router.post('/sync', syncLimiter, async (req, res, next) => {

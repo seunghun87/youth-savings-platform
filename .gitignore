@@ -1,11 +1,14 @@
+# Frontend (Vite/React)
+node_modules/
+dist/
+
 # Backend
 backend/node_modules/
 backend/.env
+backend/supabase/.temp/
 
-# Flutter
-frontend/.dart_tool/
-frontend/.flutter-plugins
-frontend/.flutter-plugins-dependencies
-frontend/build/
-frontend/.packages
-frontend/pubspec.lock
+# OS / editor
+.DS_Store
+
+# Claude Code local settings
+.claude/
