@@ -5,7 +5,7 @@ services:
     plan: free
     region: singapore
     branch: main
-    rootDir: backend
+    rootDir: app/backend
     buildCommand: npm install
     startCommand: npm start
     healthCheckPath: /health

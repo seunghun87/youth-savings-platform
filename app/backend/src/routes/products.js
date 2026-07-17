@@ -30,6 +30,10 @@ router.get('/', async (req, res, next) => {
         max_period: p.max_period,
         income_limit: p.income_limit,
         monthly_limit: p.monthly_limit,
+        min_monthly_amount: p.min_monthly_amount,
+        contribution_type: p.contribution_type || 'flexible',
+        payment_frequency: p.payment_frequency || 'monthly',
+        installment_step_amount: p.installment_step_amount,
         source: p.source,
       }))
       .sort((a, b) => b.rate - a.rate);

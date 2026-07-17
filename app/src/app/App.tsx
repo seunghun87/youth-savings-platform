@@ -8,6 +8,10 @@ import {
   TrendingDown, LayoutList,
 } from "lucide-react";
 import { fetchRecommendations, type RecommendResult, fetchSavingsProducts, type DbSavingsProduct } from "./lib/api";
+import DesignPreview from "./DesignPreview";
+import SavingsPrototype from "./SavingsPrototype";
+import PlanPrototype from "./PlanPrototype";
+import SavingsPlanV2Prototype from "./SavingsPlanV2Prototype";
 
 // ─────────────────────────────────────────────
 // Types
@@ -958,6 +962,25 @@ const DEFAULT_PLAN: PlanInfo = {
 };
 
 export default function App() {
+  const previewMode = new URLSearchParams(window.location.search).get("preview");
+  if (previewMode === "plan") {
+    return <PlanPrototype />;
+  }
+  if (previewMode === "plan-v2") {
+    return <SavingsPlanV2Prototype />;
+  }
+  if (previewMode === "onboarding") {
+    return <PlanPrototype clientId="demo-device" onSaved={() => window.location.assign(window.location.pathname)} />;
+  }
+  if (previewMode !== "legacy" && previewMode !== "design") {
+    return <SavingsPrototype />;
+  }
+  if (new URLSearchParams(window.location.search).get("preview") === "design") {
+    return <DesignPreview />;
+  }
+  if (new URLSearchParams(window.location.search).get("preview") === "savings") {
+    return <SavingsPrototype />;
+  }
   const [screen, setScreen]       = useState<Screen>("onboarding");
   const [activeTab, setActiveTab] = useState<Tab>("home");
   const [selectedId, setSelectedId] = useState<string|null>(null);

@@ -30,6 +30,10 @@ CREATE TABLE IF NOT EXISTS savings_product (
   min_period   integer        NOT NULL DEFAULT 1,
   max_period   integer        NOT NULL DEFAULT 120,
   monthly_limit integer,
+  contribution_type text NOT NULL DEFAULT 'flexible' CHECK (contribution_type IN ('fixed', 'flexible', 'step_up')),
+  payment_frequency text NOT NULL DEFAULT 'monthly' CHECK (payment_frequency IN ('monthly', 'weekly', 'daily')),
+  min_monthly_amount integer,
+  installment_step_amount integer,
   source       text           NOT NULL CHECK (source IN ('manual', 'finlife')),
   created_at   timestamptz    DEFAULT now(),
   -- upsert 충돌 기준. NULL끼리는 중복으로 치지 않으므로 manual 상품에는 영향 없음

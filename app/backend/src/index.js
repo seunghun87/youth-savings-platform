@@ -3,6 +3,7 @@ const express = require('express');
 const cors = require('cors');
 const recommendRouter = require('./routes/recommend');
 const productsRouter = require('./routes/products');
+const userStateRouter = require('./routes/userState');
 const errorHandler = require('./middleware/errorHandler');
 
 const app = express();
@@ -27,6 +28,7 @@ app.use(express.json());
 app.get('/health', (req, res) => res.json({ status: 'ok', timestamp: new Date().toISOString() }));
 app.use('/api/recommend', recommendRouter);
 app.use('/api/products', productsRouter);
+app.use('/api/user-state', userStateRouter);
 
 app.use(errorHandler);
 
