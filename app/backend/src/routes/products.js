@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const supabase = require('../services/supabaseClient');
 const { syncProducts } = require('../services/finlifeService');
+const { syncOntongPolicies } = require('../services/ontongService');
 const { syncLimiter } = require('../middleware/rateLimiter');
 
 // 상품 목록 화면용. 기간별 옵션이 있으면 그중 최고금리를, 없으면 base_rate를 대표금리로 노출한다.
@@ -34,6 +35,10 @@ router.get('/', async (req, res, next) => {
         contribution_type: p.contribution_type || 'flexible',
         payment_frequency: p.payment_frequency || 'monthly',
         installment_step_amount: p.installment_step_amount,
+        category: p.category,
+        description: p.description,
+        income_condition: p.income_condition,
+        apply_url: p.apply_url,
         source: p.source,
       }))
       .sort((a, b) => b.rate - a.rate);
@@ -49,6 +54,16 @@ router.post('/sync', syncLimiter, async (req, res, next) => {
   try {
     const count = await syncProducts();
     res.json({ message: `시중 상품 동기화 완료: ${count}개 저장됨` });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// 온통청년 청년정책 동기화. ONTONG_API_KEY 설정 후 사용 가능
+router.post('/sync-ontong', syncLimiter, async (req, res, next) => {
+  try {
+    const count = await syncOntongPolicies();
+    res.json({ message: `청년정책 동기화 완료: ${count}개 저장됨` });
   } catch (err) {
     next(err);
   }
