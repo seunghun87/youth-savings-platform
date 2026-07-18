@@ -31,6 +31,8 @@ CREATE TABLE IF NOT EXISTS savings_product (
   max_period   integer        NOT NULL DEFAULT 120,
   monthly_limit integer,
   source       text           NOT NULL CHECK (source IN ('manual', 'finlife')),
+  -- 반려동물/자녀 등 테마별 분류 태그. 미분류 상품은 NULL
+  category     text,
   created_at   timestamptz    DEFAULT now(),
   -- upsert 충돌 기준. NULL끼리는 중복으로 치지 않으므로 manual 상품에는 영향 없음
   CONSTRAINT uq_savings_product_finlife UNIQUE (fin_co_no, fin_prdt_cd)
