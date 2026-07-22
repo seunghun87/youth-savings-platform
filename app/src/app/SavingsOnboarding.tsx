@@ -44,12 +44,16 @@ export default function SavingsOnboarding({
         period_months: Math.max(1, Math.ceil(v.target / v.monthly)),
         age: v.age,
         personal_income: v.income,
+        is_homeowner: false,
+        income_reported: true,
       });
       await updateUserProfile(clientId, {
         name: v.name.trim(),
         age: v.age,
         city: v.city,
         annual_income: v.income,
+        is_homeowner: false,
+        income_reported: true,
         onboarding_completed: true,
       });
       await onComplete();

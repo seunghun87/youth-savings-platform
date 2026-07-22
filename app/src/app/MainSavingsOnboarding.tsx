@@ -22,8 +22,8 @@ export default function MainSavingsOnboarding({clientId,onComplete}:{clientId:st
     try{
       await updateSavingsPlan(clientId,{target_amount:v.target,monthly_target:v.monthly,current_amount:v.current});
       await Promise.all(entered.map((p,i)=>addEnrolledProduct(clientId,{product_id:`onboarding-${Date.now()}-${i}`,product_name:p.name.trim(),bank:"직접 입력",status:"가입완료",applied_at:p.start,started_at:p.start,matures_at:p.maturity,interest_rate:Number(p.rate),monthly_amount:Number(p.monthly)})));
-      await fetchRecommendations({monthly_amount:Math.round(totalMonthly/10000),period_months:Math.max(1,Math.ceil((v.target-v.current)/Math.max(1,totalMonthly))),age:v.age,personal_income:v.income});
-      await updateUserProfile(clientId,{name:v.name.trim(),age:v.age,city:v.city,annual_income:v.income,onboarding_completed:true});
+      await fetchRecommendations({monthly_amount:Math.round(totalMonthly/10000),period_months:Math.max(1,Math.ceil((v.target-v.current)/Math.max(1,totalMonthly))),age:v.age,personal_income:v.income,is_homeowner:false,income_reported:true});
+      await updateUserProfile(clientId,{name:v.name.trim(),age:v.age,city:v.city,annual_income:v.income,is_homeowner:false,income_reported:true,onboarding_completed:true});
       await onComplete();
     }catch(e){setError(e instanceof Error?e.message:"저장 중 문제가 발생했습니다.")}finally{setSaving(false)}
   };

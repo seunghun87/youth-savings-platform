@@ -9,6 +9,8 @@ const recommendRules = [
     .optional({ nullable: true })
     .isInt({ min: 1, max: 10 })
     .withMessage('소득분위는 1~10이어야 합니다'),
+  body('is_homeowner').optional().isBoolean().withMessage('주택 보유 여부는 true/false여야 합니다'),
+  body('income_reported').optional().isBoolean().withMessage('소득 신고 여부는 true/false여야 합니다'),
 ];
 
 function validate(req, res, next) {

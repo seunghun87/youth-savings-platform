@@ -35,6 +35,7 @@ CREATE TABLE IF NOT EXISTS savings_product (
   min_monthly_amount integer,
   installment_step_amount integer,
   source       text           NOT NULL CHECK (source IN ('manual', 'finlife')),
+  available_for_signup boolean NOT NULL DEFAULT true,
   created_at   timestamptz    DEFAULT now(),
   -- upsert 충돌 기준. NULL끼리는 중복으로 치지 않으므로 manual 상품에는 영향 없음
   CONSTRAINT uq_savings_product_finlife UNIQUE (fin_co_no, fin_prdt_cd)

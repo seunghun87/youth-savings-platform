@@ -1,0 +1,170 @@
+{
+  "input": "C:\\side_pj\\app_finacial\\docs\\weekly-report\\weekly-report-template.docx",
+  "fonts_by_char_count": {
+    "\ud568\ucd08\ub86c\ub3cb\uc6c0": 564
+  },
+  "direct_run_formatting_runs": 63,
+  "direct_paragraph_formatting_paragraphs": 101,
+  "heading_like_paragraphs_not_heading_style": [
+    {
+      "para_index": 3,
+      "text": "2026-\ud558\uacc4 \uc138\uc885\ucc3d\uc758\ud559\uae30\uc81c(\uc9d1\uc911\uc774\uc218\uc81c) \uc8fc\uac04\ud559\uc2b5\ubcf4\uace0\uc11c (0\uc8fc\ucc28)",
+      "style": "\ubc14\ud0d5\uae00"
+    },
+    {
+      "para_index": 5,
+      "text": "\ud300\ubc88\ud638",
+      "style": "\ubc14\ud0d5\uae00"
+    },
+    {
+      "para_index": 6,
+      "text": "\ubcf8\uc778 \ud300\ubc88\ud638",
+      "style": "\ubc14\ud0d5\uae00"
+    },
+    {
+      "para_index": 7,
+      "text": "\ucc3d\uc758\uacfc\uc81c",
+      "style": "\ubc14\ud0d5\uae00"
+    },
+    {
+      "para_index": 14,
+      "text": "\uc774\ub984",
+      "style": "\ubc14\ud0d5\uae00"
+    },
+    {
+      "para_index": 16,
+      "text": "\ud559\uc2b5\uae30\uac04",
+      "style": "\ubc14\ud0d5\uae00"
+    },
+    {
+      "para_index": 21,
+      "text": "\ud559\ubc88",
+      "style": "\ubc14\ud0d5\uae00"
+    },
+    {
+      "para_index": 23,
+      "text": "\ud559\uc2b5\uc8fc\ucc28",
+      "style": "\ubc14\ud0d5\uae00"
+    },
+    {
+      "para_index": 25,
+      "text": "\ud559\uc2b5\uc2dc\uac04",
+      "style": "\ubc14\ud0d5\uae00"
+    },
+    {
+      "para_index": 28,
+      "text": "\ud559\uacfc(\uc804\uacf5)",
+      "style": "\ubc14\ud0d5\uae00"
+    },
+    {
+      "para_index": 30,
+      "text": "\uacfc\ubaa9\uba85",
+      "style": "\ubc14\ud0d5\uae00"
+    },
+    {
+      "para_index": 32,
+      "text": "\uc218\uac15\ud559\uc810",
+      "style": "\ubc14\ud0d5\uae00"
+    },
+    {
+      "para_index": 35,
+      "text": " \u203b \uc218\uac15\ud559\uc810\uc5d0 \ub530\ub978 \ud68c\ucc28\ubcc4 \ud559\uc2b5\uc2dc\uac04 \ubc0f 5\ud68c\ucc28 \uc774\uc0c1 \ud559\uc2b5 \uc900\uc218",
+      "style": "\ubc14\ud0d5\uae00"
+    },
+    {
+      "para_index": 36,
+      "text": " \u203b \uc218\uac15\ud559\uc810\uc5d0 \ub530\ub978 \ud68c\ucc28\ubcc4 \ud559\uc2b5\uc2dc\uac04 \ubc0f 5\ud68c\ucc28 \uc774\uc0c1 \ud559\uc2b5 \uc900\uc218",
+      "style": "\ubc14\ud0d5\uae00"
+    },
+    {
+      "para_index": 37,
+      "text": " \u203b \uc218\uac15\ud559\uc810\uc5d0 \ub530\ub978 \ud68c\ucc28\ubcc4 \ud559\uc2b5\uc2dc\uac04 \ubc0f 5\ud68c\ucc28 \uc774\uc0c1 \ud559\uc2b5 \uc900\uc218",
+      "style": "\ubc14\ud0d5\uae00"
+    },
+    {
+      "para_index": 38,
+      "text": " \u203b \uc218\uac15\ud559\uc810\uc5d0 \ub530\ub978 \ud68c\ucc28\ubcc4 \ud559\uc2b5\uc2dc\uac04 \ubc0f 5\ud68c\ucc28 \uc774\uc0c1 \ud559\uc2b5 \uc900\uc218",
+      "style": "\ubc14\ud0d5\uae00"
+    },
+    {
+      "para_index": 39,
+      "text": " \u203b \uc218\uac15\ud559\uc810\uc5d0 \ub530\ub978 \ud68c\ucc28\ubcc4 \ud559\uc2b5\uc2dc\uac04 \ubc0f 5\ud68c\ucc28 \uc774\uc0c1 \ud559\uc2b5 \uc900\uc218",
+      "style": "\ubc14\ud0d5\uae00"
+    },
+    {
+      "para_index": 40,
+      "text": " \u203b \uc218\uac15\ud559\uc810\uc5d0 \ub530\ub978 \ud68c\ucc28\ubcc4 \ud559\uc2b5\uc2dc\uac04 \ubc0f 5\ud68c\ucc28 \uc774\uc0c1 \ud559\uc2b5 \uc900\uc218",
+      "style": "\ubc14\ud0d5\uae00"
+    },
+    {
+      "para_index": 41,
+      "text": " \u203b \uc218\uac15\ud559\uc810\uc5d0 \ub530\ub978 \ud68c\ucc28\ubcc4 \ud559\uc2b5\uc2dc\uac04 \ubc0f 5\ud68c\ucc28 \uc774\uc0c1 \ud559\uc2b5 \uc900\uc218",
+      "style": "\ubc14\ud0d5\uae00"
+    },
+    {
+      "para_index": 42,
+      "text": "\uae08\uc8fc",
+      "style": "\ubc14\ud0d5\uae00"
+    }
+  ],
+  "examples": {
+    "direct_run_formatting": [
+      {
+        "para_index": 3,
+        "run_text": "2026-\ud558\uacc4 \uc138\uc885\ucc3d\uc758\ud559\uae30\uc81c(\uc9d1\uc911\uc774\uc218\uc81c) \uc8fc\uac04\ud559\uc2b5\ubcf4\uace0\uc11c (",
+        "style": "\ubc14\ud0d5\uae00"
+      },
+      {
+        "para_index": 3,
+        "run_text": "0\uc8fc\ucc28",
+        "style": "\ubc14\ud0d5\uae00"
+      },
+      {
+        "para_index": 3,
+        "run_text": ")",
+        "style": "\ubc14\ud0d5\uae00"
+      },
+      {
+        "para_index": 5,
+        "run_text": "\ud300\ubc88\ud638",
+        "style": "\ubc14\ud0d5\uae00"
+      },
+      {
+        "para_index": 6,
+        "run_text": "\ubcf8\uc778 \ud300\ubc88\ud638",
+        "style": "\ubc14\ud0d5\uae00"
+      }
+    ],
+    "direct_paragraph_formatting": [
+      {
+        "para_index": 7,
+        "text": "\ucc3d\uc758\uacfc\uc81c",
+        "style": "\ubc14\ud0d5\uae00"
+      },
+      {
+        "para_index": 8,
+        "text": "",
+        "style": "\ubc14\ud0d5\uae00"
+      },
+      {
+        "para_index": 9,
+        "text": "",
+        "style": "\ubc14\ud0d5\uae00"
+      },
+      {
+        "para_index": 10,
+        "text": "",
+        "style": "\ubc14\ud0d5\uae00"
+      },
+      {
+        "para_index": 11,
+        "text": "",
+        "style": "\ubc14\ud0d5\uae00"
+      }
+    ]
+  },
+  "notes": [
+    "Direct formatting is not always wrong, but it often causes inconsistent output when templates change.",
+    "Heading-like paragraphs not using Heading styles can break TOC and accessibility."
+  ]
+}

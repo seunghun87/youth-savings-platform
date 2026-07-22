@@ -70,7 +70,9 @@ export default function PlanPrototype({ clientId, initialState, onSaved }: {
   const [age, setAge] = useState(initialState?.profile.age ?? 26);
   const [city, setCity] = useState(initialState?.profile.city ?? "");
   const [regionQuery, setRegionQuery] = useState("");
-  const [income, setIncome] = useState("4분위");
+  const [annualIncome, setAnnualIncome] = useState(String(initialState?.profile.annual_income ?? 3600));
+  const [isHomeowner, setIsHomeowner] = useState(initialState?.profile.is_homeowner ?? false);
+  const [incomeReported, setIncomeReported] = useState(initialState?.profile.income_reported ?? true);
   const [asset, setAsset] = useState("예적금 보유");
   const [savingBalance, setSavingBalance] = useState(initialState ? String(Math.round(Number(initialState.plan.current_amount) / 10000)) : "");
   const [savingProducts, setSavingProducts] = useState<SavingProduct[]>(initialState?.enrolled_products.length
@@ -114,16 +116,31 @@ export default function PlanPrototype({ clientId, initialState, onSaved }: {
     return "맞춤 플랜 만들기";
   }, [step]);
 
+  const canContinue = useMemo(() => {
+    if (step === 0) return name.trim().length > 0 && city.length > 0;
+    if (step === 1) {
+      const incomeAmount = Number(annualIncome);
+      const entered = asset === "예적금 보유" ? savingProducts.filter(product => product.name.trim()) : [];
+      return Number.isInteger(incomeAmount) && incomeAmount >= 0 && entered.every(product =>
+        Boolean(product.startedAt) && Boolean(product.maturesAt) &&
+        Number(product.monthlyAmount) > 0 && Number(product.interestRate) >= 0 &&
+        product.startedAt <= product.maturesAt
+      );
+    }
+    if (step === 2) return Boolean(job) && Boolean(household);
+    return monthly >= 10 && target > 0 && currentBalance <= target && totalMonthly > 0 && interests.length > 0;
+  }, [step, name, city, annualIncome, asset, savingProducts, job, household, monthly, target, currentBalance, totalMonthly, interests]);
+
   const savePlan = async () => {
     if (!clientId) { setFinished(true); return; }
     const entered = asset === "예적금 보유" ? savingProducts.filter(product => product.name.trim()) : [];
-    if (!name.trim() || !city || currentBalance > target ||
+    const incomeAmount = Number(annualIncome);
+    if (!name.trim() || !city || !Number.isInteger(incomeAmount) || incomeAmount < 0 || currentBalance > target ||
         entered.some(product => !product.startedAt || !product.maturesAt || Number(product.monthlyAmount) <= 0 || Number(product.interestRate) < 0)) {
       setError("이름, 지역, 금액과 저축 상품 정보를 다시 확인해주세요.");
       return;
     }
     setSaving(true); setError("");
-    const annualIncome = income === "1~3분위" ? 2400 : income === "4분위" ? 3600 : income === "5~6분위" ? 5000 : 7000;
     try {
       await updateSavingsPlan(clientId, {
         target_amount:target * 10000, monthly_target:monthly * 10000, current_amount:currentBalance * 10000,
@@ -135,10 +152,11 @@ export default function PlanPrototype({ clientId, initialState, onSaved }: {
         interest_rate:Number(product.interestRate), monthly_amount:Number(product.monthlyAmount) * 10000,
       })));
       await updateUserProfile(clientId, {
-        name:name.trim(), age, city, annual_income:annualIncome, onboarding_completed:true,
+        name:name.trim(), age, city, annual_income:incomeAmount, is_homeowner:isHomeowner, income_reported:incomeReported, onboarding_completed:true,
       });
       await fetchRecommendations({
-        monthly_amount:totalMonthly, period_months:Math.max(1, months), age, personal_income:annualIncome,
+        monthly_amount:totalMonthly, period_months:Math.max(1, months), age, personal_income:incomeAmount,
+        is_homeowner:isHomeowner, income_reported:incomeReported,
       });
       setFinished(true);
     } catch (e) {
@@ -254,12 +272,10 @@ export default function PlanPrototype({ clientId, initialState, onSaved }: {
           <h1>정확하지 않아도<br />괜찮아요</h1>
           <p className="pp-description">대략적인 수준만 알아도 충분히 추천할 수 있어요.</p>
           <section className="pp-block">
-            <div className="pp-label-row"><div className="pp-card-label">소득 수준</div><button>잘 모르겠어요</button></div>
-            <div className="pp-income">
-              {["1~3분위", "4분위", "5~6분위", "7분위 이상"].map(x =>
-                <button className={income === x ? "selected" : ""} onClick={() => setIncome(x)} key={x}>{x}</button>
-              )}
-            </div>
+            <div className="pp-card-label">직전년도 개인 연소득</div>
+            <div className="pp-income-amount"><input type="number" min="0" inputMode="numeric" value={annualIncome} onChange={e=>setAnnualIncome(e.target.value)} /><b>만 원</b></div>
+            <p className="pp-field-help">소득확인증명서의 개인 연소득을 입력해주세요.</p>
+            <Choice selected={incomeReported} icon={<Check size={20}/>} title="직전년도 신고소득이 있어요" description="근로·사업·기타소득 신고 내역이 있어요" onClick={()=>setIncomeReported(v=>!v)} />
           </section>
           <section className="pp-block">
             <div className="pp-card-label">현재 자산 상태</div>
@@ -351,6 +367,11 @@ export default function PlanPrototype({ clientId, initialState, onSaved }: {
             <Choice selected={household === "1인 가구"} icon={<Home size={21}/>} title="1인 가구" description="혼자 거주하고 있어요" onClick={() => setHousehold("1인 가구")} />
             <Choice selected={household === "가족과 함께"} icon={<UserRound size={21}/>} title="가족과 함께" description="부모님, 배우자 또는 자녀와 살아요" onClick={() => setHousehold("가족과 함께")} />
           </section>
+          <section className="pp-block">
+            <div className="pp-card-label">주택 보유 여부</div>
+            <Choice selected={!isHomeowner} icon={<Home size={21}/>} title="무주택이에요" description="본인 명의 주택을 보유하지 않았어요" onClick={() => setIsHomeowner(false)} />
+            <Choice selected={isHomeowner} icon={<Home size={21}/>} title="주택을 보유하고 있어요" onClick={() => setIsHomeowner(true)} />
+          </section>
         </>}
 
         {step === 3 && <>
@@ -391,7 +412,7 @@ export default function PlanPrototype({ clientId, initialState, onSaved }: {
 
       {error && <div className="pp-error">{error}</div>}
       <footer className="pp-footer">
-        <button className="pp-primary" disabled={saving} onClick={() => step < 3 ? setStep(v => v + 1) : savePlan()}>
+        <button className="pp-primary" disabled={saving || !canContinue} onClick={() => step < 3 ? setStep(v => v + 1) : savePlan()}>
           {saving ? "플랜 저장 중" : buttonLabel} {!saving && <ChevronRight size={18}/>}
         </button>
       </footer>

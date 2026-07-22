@@ -114,7 +114,7 @@ function Header({ eyebrow, title, onNotifications }: { eyebrow: string; title: s
   );
 }
 
-function HomePage({state,onRecord,onNotifications,onShowAll,onProduct,onBenefits}:{state:UserSavingsState|null;onRecord:()=>void;onNotifications:()=>void;onShowAll:()=>void;onProduct:(p:ProductView)=>void;onBenefits:()=>void}) {
+function HomePage({state,onRecord,onQuickPay,onNotifications,onShowAll,onProduct,onBenefits}:{state:UserSavingsState|null;onRecord:()=>void;onQuickPay:(product:UserSavingsState["enrolled_products"][number])=>void;onNotifications:()=>void;onShowAll:()=>void;onProduct:(p:ProductView)=>void;onBenefits:()=>void}) {
   const existingMonthly=(state?.enrolled_products??[]).reduce((sum,product)=>sum+Number(product.monthly_amount??0),0);
   const current=Number(state?.plan.current_amount??0), target=Number(state?.plan.target_amount??50000000), monthly=Number(state?.plan.monthly_target??700000)+existingMonthly;
   const pct=Math.min(100,Math.round(current/target*100));
@@ -171,7 +171,7 @@ function HomePage({state,onRecord,onNotifications,onShowAll,onProduct,onBenefits
         <article className="sp-payment">
           {(state?.enrolled_products??[]).map((product)=>{
             const paid=(state?.contributions??[]).filter(x=>x.product_name===product.product_name&&x.contributed_at.slice(0,7)===new Date().toISOString().slice(0,7)).reduce((sum,x)=>sum+Number(x.amount),0);
-            return <div className="sp-pay-row" key={product.id}><i className={paid>0?"done":""}>{paid>0?"✓":"·"}</i><div><b>{product.product_name}</b><span>{paid>0?"이번 달 납입 완료":product.status}</span></div><strong>{paid>0?`${Math.round(paid/10000).toLocaleString()}만 원`:"미납입"}</strong></div>;
+            return <div className="sp-pay-row" key={product.id}><i className={paid>0?"done":""}>{paid>0?"✓":"·"}</i><div><b>{product.product_name}</b><span>{paid>0?"이번 달 납입 완료":`${Number(product.monthly_amount??0).toLocaleString()}원 예정`}</span></div><button className={paid>0?"sp-quick-paid":"sp-quick-pay"} disabled={paid>0} onClick={()=>onQuickPay(product)}>{paid>0?"완료 ✓":"납입 완료"}</button></div>;
           })}
           {!state?.enrolled_products?.length&&<div className="sp-empty-payment"><b>아직 추가한 적금이 없어요</b><span>적금 찾기에서 신청한 상품을 추가해주세요.</span></div>}
           <button onClick={onRecord}>납입 기록 추가하기</button>
@@ -209,7 +209,7 @@ function Product({ p, onOpen, saved=false, onSave }: { p: ProductView; onOpen:(p
       <span className={`sp-tag ${p.type==="정책"?"policy":"market"}`}>{p.type==="정책"?"정부지원":"시중은행"}</span>
       <small>{p.org}</small>
       <h3>{p.name}</h3>
-      <p>{p.amount.startsWith("연 ")?"최고 금리":"예상 만기 금액"}</p>
+      <p>{p.amount.startsWith("연 ")?"조건 충족 시 표시 금리":"예상 만기 금액"}</p>
       <strong>{p.amount}</strong>
       <em>{p.desc}</em>
       <div>✓ {reason || p.fit}</div>
@@ -219,6 +219,7 @@ function Product({ p, onOpen, saved=false, onSave }: { p: ProductView; onOpen:(p
           자격 조건 {p.recommendation.checks.filter((check) => check.met).length}/
           {p.recommendation.checks.length} 충족 · 세후 예상 수령액{" "}
           {p.recommendation.expected_amount.toLocaleString()}원
+          <span className="sp-breakdown">{p.recommendation.calculation_period_months}개월 기준 · 원금 {p.recommendation.principal.toLocaleString()}원 · 세후 이자 {p.recommendation.aftertax_interest.toLocaleString()}원{p.recommendation.government_contribution>0?` · 정부기여금 ${p.recommendation.government_contribution.toLocaleString()}원`:""}</span>
         </small>
       )}
       <ChevronRight className="sp-chevron" size={20} />
@@ -525,6 +526,8 @@ export default function SavingsPrototype() {
       period_months:Math.max(1,Math.ceil(remaining/monthlyTarget)),
       age:Number(userState.profile.age),
       personal_income:Math.max(0,Math.round(Number(userState.profile.annual_income))),
+      is_homeowner:!!userState.profile.is_homeowner,
+      income_reported:!!userState.profile.income_reported,
     }).then((data)=>setRecommendations(data??[]));
   },[userState]);
   const rankedItems = recommendations.length
@@ -540,6 +543,7 @@ export default function SavingsPrototype() {
   useEffect(()=>{if(selectedProduct)setEnrollmentAmount(String(Math.min(selectedProduct.maxMonthly??selectedProduct.minMonthly,Math.max(selectedProduct.minMonthly,200000))))},[selectedProduct]);
   const openContribution=()=>{const first=userState?.enrolled_products?.[0];setContribution({productName:first?.product_name??"",amount:first?.monthly_amount?String(first.monthly_amount):"",date:new Date().toISOString().slice(0,10)});setContributionOpen(true);};
   const recordContribution=async()=>{const amount=Number(contribution.amount.replace(/,/g,""));if(!contribution.productName){setNotice("먼저 적금 찾기에서 신청한 상품을 추가해주세요.");return;}if(!Number.isInteger(amount)||amount<=0){setNotice("올바른 납입 금액을 입력해주세요.");return;}try{await addSavingsContribution(clientId,contribution.productName,amount,contribution.date);await reloadState();setContributionOpen(false);setNotice("납입 기록이 저장되고 총 저축 자산에 반영됐어요.");}catch(e){setNotice(e instanceof Error?e.message:"저장에 실패했습니다");}};
+  const quickPay=async(product:UserSavingsState["enrolled_products"][number])=>{if(!userState)return;const productPayments=userState.contributions.filter(x=>x.product_name===product.product_name);const amount=product.contribution_type==="step_up"?Number(product.monthly_amount??0)+Number(product.installment_step_amount??0)*productPayments.length:Number(product.monthly_amount??0);if(!Number.isInteger(amount)||amount<=0){setNotice("약정 납입액이 없어요. 상세 기록에서 금액을 입력해주세요.");openContribution();return;}try{await addSavingsContribution(clientId,product.product_name,amount,new Date().toISOString().slice(0,10));await reloadState();setNotice(`${product.product_name}\n\n이번 달 ${amount.toLocaleString()}원 납입을 기록했어요.`);}catch(e){setNotice(e instanceof Error?e.message:"납입 기록 저장에 실패했습니다");}};
   const enrollProduct=async(p:ProductView)=>{const amount=Number(enrollmentAmount);if(!Number.isInteger(amount)||amount<p.minMonthly||(p.maxMonthly!==null&&amount>p.maxMonthly)){setNotice(`납입액은 ${p.minMonthly.toLocaleString()}원${p.maxMonthly?`~${p.maxMonthly.toLocaleString()}원`:" 이상"}으로 입력해주세요.`);return;}try{await addEnrolledProduct(clientId,{product_id:p.id,product_name:p.name,bank:p.org,status:"가입완료",interest_rate:p.rate,monthly_amount:amount,contribution_type:p.contributionType,payment_frequency:p.paymentFrequency,min_amount:p.minMonthly,max_amount:p.maxMonthly??undefined,installment_step_amount:p.installmentStep??undefined});await reloadState();setSelectedProduct(null);setNotice("가입 조건과 약정 납입액을 플랜에 반영했어요.");}catch(e){setNotice(e instanceof Error?e.message:"상품을 추가하지 못했습니다.");}};
   const showNotifications=()=>setNotice("새 알림\n\n• 이번 달 저축 목표를 확인해보세요.\n• 관심 적금의 금리 정보가 갱신됐어요.\n• 청년월세 지원 신청 기간을 확인해보세요.");
   const toggleSaved=async(p:ProductView)=>{if(!userState)return;const saved=!userState.saved_product_ids.includes(p.id);try{await setSavedProduct(clientId,p.id,saved);await reloadState();setNotice(saved?"관심 상품에 저장했어요.":"관심 상품에서 삭제했어요.");}catch(e){setNotice(e instanceof Error?e.message:"저장 상태를 변경하지 못했습니다.");}};
@@ -549,7 +553,7 @@ export default function SavingsPrototype() {
   const saveRecord=async(id:string)=>{const draft=recordDrafts[id],amount=Number(draft.amount);if(!Number.isInteger(amount)||amount<=0){setNotice("납입 금액을 다시 확인해주세요.");return;}try{await updateSavingsContribution(clientId,id,{...draft,amount});await reloadState();setNotice("납입 기록을 수정했어요.");}catch(e){setNotice(e instanceof Error?e.message:"기록을 수정하지 못했습니다.");}};
   const removeRecord=async(id:string)=>{if(!window.confirm("이 납입 기록을 삭제할까요?"))return;try{await deleteSavingsContribution(clientId,id);await reloadState();setRecordDrafts(x=>{const next={...x};delete next[id];return next});setNotice("납입 기록을 삭제했어요.");}catch(e){setNotice(e instanceof Error?e.message:"기록을 삭제하지 못했습니다.");}};
   const terminateProduct=async(reason:string,payout:number)=>{if(!userState||!terminationProduct)return;const principal=userState.contributions.filter(x=>x.product_name===terminationProduct.product_name).reduce((sum,x)=>sum+Number(x.amount),0);try{await updateEnrolledProduct(clientId,terminationProduct.product_id,{status:"중도해지",ended_at:new Date().toISOString().slice(0,10),termination_reason:reason,termination_payout:payout});if(payout!==principal)await updateSavingsPlan(clientId,{target_amount:Number(userState.plan.target_amount),monthly_target:Number(userState.plan.monthly_target),current_amount:Math.max(0,Number(userState.plan.current_amount)+payout-principal)});await reloadState();setTerminationProduct(null);setNotice("중도해지를 반영하고 목표 기간과 예상 이자를 다시 계산했어요.");}catch(e){setNotice(e instanceof Error?e.message:"중도해지를 반영하지 못했습니다.");}};
-  const editProfile=async()=>{if(!userState)return;const name=window.prompt("이름을 입력해주세요",userState.profile.name);if(!name?.trim())return;const city=window.prompt("거주 지역을 입력해주세요",userState.profile.city);if(!city?.trim())return;try{await updateUserProfile(clientId,{name:name.trim(),age:userState.profile.age,city:city.trim(),annual_income:userState.profile.annual_income,onboarding_completed:userState.profile.onboarding_completed});await reloadState();setNotice("프로필을 수정했어요.");}catch(e){setNotice(e instanceof Error?e.message:"프로필을 수정하지 못했습니다.");}};
+  const editProfile=async()=>{if(!userState)return;const name=window.prompt("이름을 입력해주세요",userState.profile.name);if(!name?.trim())return;const city=window.prompt("거주 지역을 입력해주세요",userState.profile.city);if(!city?.trim())return;try{await updateUserProfile(clientId,{name:name.trim(),age:userState.profile.age,city:city.trim(),annual_income:userState.profile.annual_income,is_homeowner:userState.profile.is_homeowner,income_reported:userState.profile.income_reported,onboarding_completed:userState.profile.onboarding_completed});await reloadState();setNotice("프로필을 수정했어요.");}catch(e){setNotice(e instanceof Error?e.message:"프로필을 수정하지 못했습니다.");}};
   const openMenu=(title:string)=>{if(title==="저장한 적금"){setTab("find");setNotice("북마크 아이콘이 채워진 상품이 저장한 적금이에요.");return;}setNotice(`${title}\n\n해당 설정은 현재 입력된 사용자 정보를 기준으로 관리됩니다.`);};
   if(stateLoading)return <div className="sp-shell"><main className="sp-loading" aria-busy="true" aria-label="저축 데이터 불러오는 중"><div/><section/><section/></main></div>;
   if(!userState?.profile.onboarding_completed)return <PlanPrototype clientId={clientId} onSaved={reloadState}/>;
@@ -558,7 +562,7 @@ export default function SavingsPrototype() {
     <div className="sp-shell">
       <main>
         {tab === "home" ? (
-          <HomePage state={userState} onRecord={openContribution} onNotifications={showNotifications} onShowAll={()=>setTab("find")} onProduct={setSelectedProduct} onBenefits={()=>setTab("benefits")} />
+          <HomePage state={userState} onRecord={openContribution} onQuickPay={quickPay} onNotifications={showNotifications} onShowAll={()=>setTab("find")} onProduct={setSelectedProduct} onBenefits={()=>setTab("benefits")} />
         ) : tab === "find" ? (
           <FindPage items={rankedItems} loading={loading} savedIds={userState.saved_product_ids} onProduct={setSelectedProduct} onSave={toggleSaved} onNotifications={showNotifications} />
         ) : tab === "plan" ? (
@@ -566,7 +570,7 @@ export default function SavingsPrototype() {
         ) : tab === "benefits" ? (
           <BenefitsPage onNotifications={showNotifications} onOpen={title=>setNotice(`${title}\n\n지원 대상과 신청 기간을 확인한 뒤 해당 기관 홈페이지에서 신청할 수 있어요.`)} />
         ) : (
-          <MyPage state={userState} onProfile={editProfile} onMenu={openMenu} onNotifications={showNotifications} />
+          <MyPage state={userState} onProfile={()=>setReplanning(true)} onMenu={openMenu} onNotifications={showNotifications} />
         )}
       </main>
       <nav>

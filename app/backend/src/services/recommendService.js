@@ -9,9 +9,18 @@ function pickRate(product, periodMonths) {
   const options = Array.isArray(product.options) ? product.options : null;
   if (!options || options.length === 0) return Number(product.base_rate);
 
-  const applicable = options.filter(o => o.term <= periodMonths);
+  const selectedTerm = Math.min(periodMonths, Number(product.max_period));
+  const applicable = options.filter(o => o.term <= selectedTerm);
   if (applicable.length === 0) return null;
-  return Math.max(...applicable.map(o => o.rate));
+  const longestTerm = Math.max(...applicable.map(o => o.term));
+  return Math.max(...applicable.filter(o => o.term === longestTerm).map(o => o.rate));
+}
+
+function pickCalculationPeriod(product, periodMonths) {
+  const options = Array.isArray(product.options) ? product.options : [];
+  if (!options.length) return Math.min(periodMonths, Number(product.max_period));
+  const applicable = options.filter(o => o.term <= Math.min(periodMonths, Number(product.max_period)));
+  return applicable.length ? Math.max(...applicable.map(o => o.term)) : null;
 }
 
 function evaluateProduct(product, input) {
@@ -23,7 +32,7 @@ function evaluateProduct(product, input) {
     },
     {
       key: 'period',
-      label: `최소 가입기간 ${product.min_period}개월`,
+      label: `목표 기간 안에서 ${product.min_period}~${product.max_period}개월 운용`,
       met: input.period_months >= product.min_period,
     },
     {
@@ -46,6 +55,11 @@ function evaluateProduct(product, input) {
     },
   ];
 
+  if (product.name.includes('주택드림')) {
+    checks.push({ key: 'housing', label: '무주택자', met: input.is_homeowner === false });
+    checks.push({ key: 'income_reported', label: '직전년도 신고소득 있음', met: input.income_reported === true });
+  }
+
   const failed = checks.filter(check => !check.met);
   const eligibilityScore = Math.round(
     (checks.filter(check => check.met).length / checks.length) * 100,
@@ -57,6 +71,18 @@ function evaluateProduct(product, input) {
     eligibilityScore,
     eligible: failed.length === 0,
   };
+}
+
+function governmentContribution(product, monthlyWon, months, personalIncome) {
+  if (!product.name.includes('청년도약계좌') || personalIncome > 6000) return 0;
+  const bracket = personalIncome <= 2400 ? [400000, .06]
+    : personalIncome <= 3600 ? [500000, .046]
+    : personalIncome <= 4800 ? [600000, .037]
+    : [700000, .03];
+  const eligiblePayment = Math.min(monthlyWon, 700000);
+  const baseContribution = Math.min(eligiblePayment, bracket[0]) * bracket[1];
+  const expandedContribution = Math.max(0, eligiblePayment - bracket[0]) * .03;
+  return Math.floor((baseContribution + expandedContribution) * months);
 }
 
 function buildRecommendationReason(product, rate, input) {
@@ -97,19 +123,21 @@ async function saveHistory(input, results) {
   }
 }
 
-async function getRecommendations({ monthly_amount, period_months, age, personal_income, income_bracket }) {
+async function getRecommendations({ monthly_amount, period_months, age, personal_income, income_bracket, is_homeowner, income_reported }) {
   const { data: products, error } = await supabase
     .from('savings_product')
-    .select('*');
+    .select('*')
+    .eq('available_for_signup', true);
 
   if (error) throw error;
 
-  const input = { monthly_amount, period_months, age, personal_income };
+  const input = { monthly_amount, period_months, age, personal_income, is_homeowner, income_reported };
   const candidates = products
     .map(p => ({
       product: p,
       evaluation: evaluateProduct(p, input),
       rate: pickRate(p, period_months),
+      calculationMonths: pickCalculationPeriod(p, period_months),
     }))
     .filter(c => c.evaluation.eligible)
     .filter(c => c.rate !== null);
@@ -121,13 +149,20 @@ async function getRecommendations({ monthly_amount, period_months, age, personal
     return b.rate - a.rate;
   });
 
-  const results = candidates.map(({ product: p, rate, evaluation }, i) => ({
+  const results = candidates.map(({ product: p, rate, evaluation, calculationMonths }, i) => {
+    const calculation = calculateMaturityAmount(monthly_amount * 10000, calculationMonths, rate);
+    const contribution = governmentContribution(p, monthly_amount * 10000, calculationMonths, personal_income);
+    return ({
     id: p.id,
     name: p.name,
     bank: p.bank,
     product_type: p.product_type,
     base_rate: rate,
-    expected_amount: calculateMaturityAmount(monthly_amount * 10000, period_months, rate),
+    expected_amount: calculation.maturityAmount + contribution,
+    principal: calculation.principal,
+    aftertax_interest: calculation.aftertaxInterest,
+    government_contribution: contribution,
+    calculation_period_months: calculationMonths,
     rank: i + 1,
     notice: p.income_limit ? `연소득 ${p.income_limit.toLocaleString()}만원 이하 조건 있음` : null,
     eligibility_status: 'eligible',
@@ -135,7 +170,7 @@ async function getRecommendations({ monthly_amount, period_months, age, personal
     checks: evaluation.checks,
     recommendation_reasons: buildRecommendationReason(p, rate, input),
     data_source: p.source,
-  }));
+  }); });
 
   await saveHistory({ monthly_amount, period_months, age, personal_income, income_bracket }, results);
 

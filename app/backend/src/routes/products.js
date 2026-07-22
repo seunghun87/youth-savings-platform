@@ -14,7 +14,7 @@ function maxRate(p) {
 
 router.get('/', async (req, res, next) => {
   try {
-    const { data, error } = await supabase.from('savings_product').select('*');
+    const { data, error } = await supabase.from('savings_product').select('*').eq('available_for_signup', true);
     if (error) throw error;
 
     const products = data

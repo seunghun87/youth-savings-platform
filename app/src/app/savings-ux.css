@@ -2,6 +2,8 @@
   padding: calc(24px + env(safe-area-inset-top)) 20px
     calc(110px + env(safe-area-inset-bottom));
 }
+.sp-product .sp-breakdown { display:block; margin-top:4px; color:#7b857e; font-size:9px; line-height:1.45; }
+.sp-pay-row .sp-quick-pay,.sp-pay-row .sp-quick-paid{flex:none;min-width:68px;height:32px;padding:0 10px;border:0;border-radius:10px;background:var(--spdeep);color:#fff;font-size:10px;font-weight:750}.sp-pay-row .sp-quick-paid{background:var(--spsoft);color:var(--sp);cursor:default}.sp-pay-row .sp-quick-paid:disabled{opacity:1}
 
 .sp-empty-results {
   display: flex;
