@@ -3,6 +3,8 @@ const express = require('express');
 const cors = require('cors');
 const recommendRouter = require('./routes/recommend');
 const productsRouter = require('./routes/products');
+const youthPolicyRouter = require('./routes/youthPolicy');
+const allocateRouter = require('./routes/allocate');
 const errorHandler = require('./middleware/errorHandler');
 
 const app = express();
@@ -27,6 +29,8 @@ app.use(express.json());
 app.get('/health', (req, res) => res.json({ status: 'ok', timestamp: new Date().toISOString() }));
 app.use('/api/recommend', recommendRouter);
 app.use('/api/products', productsRouter);
+app.use('/api/youth-policy', youthPolicyRouter);
+app.use('/api/allocate', allocateRouter);
 
 app.use(errorHandler);
 
