@@ -1,0 +1,20 @@
+services:
+  - type: web
+    name: youth-savings-backend
+    runtime: node
+    plan: free
+    region: singapore
+    branch: main
+    rootDir: app/backend
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /health
+    envVars:
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: FINLIFE_API_KEY
+        sync: false
+      - key: PORT
+        value: 3000

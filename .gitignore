@@ -1,11 +1,28 @@
+# Frontend (Vite/React)
+node_modules/
+dist/
+app/node_modules/
+app/dist/
+
 # Backend
 backend/node_modules/
 backend/.env
+backend/supabase/.temp/
+app/backend/node_modules/
+app/backend/.env
+app/backend/supabase/.temp/
 
-# Flutter
-frontend/.dart_tool/
-frontend/.flutter-plugins
-frontend/.flutter-plugins-dependencies
-frontend/build/
-frontend/.packages
-frontend/pubspec.lock
+# Runtime and preview artifacts
+*.log
+emulator_screenshot.png
+.vite/
+
+# Legacy generated folders left outside the integrated app directory
+/android/
+/backend/
+
+# OS / editor
+.DS_Store
+
+# Claude Code local settings
+.claude/

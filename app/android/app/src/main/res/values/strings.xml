@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Financial Support</string>
+    <string name="title_activity_main">Financial Support</string>
+    <string name="package_name">com.sidepj.savingapp</string>
+    <string name="custom_url_scheme">com.sidepj.savingapp</string>
+</resources>
