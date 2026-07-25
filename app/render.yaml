@@ -16,5 +16,7 @@ services:
         sync: false
       - key: FINLIFE_API_KEY
         sync: false
+      - key: YOUTH_POLICY_API_KEY
+        sync: false
       - key: PORT
         value: 3000

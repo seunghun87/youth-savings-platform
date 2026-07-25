@@ -4,6 +4,8 @@ const cors = require('cors');
 const recommendRouter = require('./routes/recommend');
 const productsRouter = require('./routes/products');
 const userStateRouter = require('./routes/userState');
+const youthPolicyRouter = require('./routes/youthPolicy');
+const allocateRouter = require('./routes/allocate');
 const errorHandler = require('./middleware/errorHandler');
 
 const app = express();
@@ -29,6 +31,8 @@ app.get('/health', (req, res) => res.json({ status: 'ok', timestamp: new Date().
 app.use('/api/recommend', recommendRouter);
 app.use('/api/products', productsRouter);
 app.use('/api/user-state', userStateRouter);
+app.use('/api/youth-policy', youthPolicyRouter);
+app.use('/api/allocate', allocateRouter);
 
 app.use(errorHandler);
 
