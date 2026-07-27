@@ -35,6 +35,7 @@ import {
   fetchRecommendations,
   fetchSavingsProducts,
   fetchUserSavingsState,
+  fetchYouthPolicies,
   setSavedProduct,
   updateSavingsPlan,
   updateSavingsContribution,
@@ -42,6 +43,7 @@ import {
   updateUserProfile,
   type RecommendResult,
   type UserSavingsState,
+  type YouthPolicy,
 } from "./lib/api";
 import PlanPrototype from "./PlanPrototype";
 import SavingsPlanV2Prototype from "./SavingsPlanV2Prototype";
@@ -355,50 +357,85 @@ function PlanPage({state,onGoalEdit,onAllocationEdit,onNotifications,onFind,onTe
     </>
   );
 }
-function BenefitsPage({onNotifications,onOpen}:{onNotifications:()=>void;onOpen:(title:string)=>void}) {
+// 온통청년 정책 대분류별 아이콘. 분류가 없거나 새 분류가 생기면 Gift로 떨어진다.
+const POLICY_ICONS: Record<string, typeof Landmark> = {
+  "주거": Landmark,
+  "일자리": WalletCards,
+  "교육": WalletCards,
+  "복지문화": Gift,
+  "참여권리": Gift,
+};
+
+function BenefitsPage({profile,onNotifications,onOpen}:{profile:UserSavingsState["profile"];onNotifications:()=>void;onOpen:(policy:YouthPolicy)=>void}) {
   const [category,setCategory]=useState("전체");
-  const bs = [
-    {
-      t: "청년월세 특별지원",
-      c: "주거비 줄이기",
-      v: "월 최대 20만 원",
-      e: "지원금을 저축하면 목표가 11개월 빨라져요",
-    },
-    {
-      t: "국가근로장학금",
-      c: "학비 줄이기",
-      v: "학기 최대 520만 원",
-      e: "학비 부담 없이 저축을 유지할 수 있어요",
-    },
-    {
-      t: "청년 취업지원금",
-      c: "소득 늘리기",
-      v: "최대 300만 원",
-      e: "받는 금액의 30%를 저축해보세요",
-    },
-  ];
+  const [policies,setPolicies]=useState<YouthPolicy[]|null>(null);
+  const [loading,setLoading]=useState(true);
+  const [failed,setFailed]=useState(false);
+
+  // 나이·연소득(만원)을 넘기면 백엔드가 자격 판정과 미충족 사유까지 함께 내려준다
+  useEffect(()=>{
+    let active=true;
+    setLoading(true);setFailed(false);
+    fetchYouthPolicies({age:profile.age,income:profile.annual_income,limit:50})
+      .then(data=>{if(!active)return;if(data)setPolicies(data);else setFailed(true)})
+      .finally(()=>{if(active)setLoading(false)});
+    return ()=>{active=false};
+  },[profile.age,profile.annual_income]);
+
+  const categories=["전체",...Array.from(new Set((policies??[]).map(p=>p.category_large).filter((x):x is string=>!!x)))];
+  const shown=(policies??[]).filter(p=>category==="전체"||p.category_large===category);
+  const eligibleCount=(policies??[]).filter(p=>p.status==="충족").length;
+
   return (
     <>
-      <Header eyebrow="저축할 여유를 만드는 방법" title="추가 혜택" onNotifications={onNotifications} />
-      <div className="sp-chips">
-        {["전체","생활비","주거비","학비"].map(x=><button key={x} className={category===x?"on":""} onClick={()=>setCategory(x)}>{x}</button>)}
-      </div>
-      <div className="sp-benefits">
-        {bs.filter(x=>category==="전체"||x.c.startsWith(category)).map((x, i) => (
-          <article key={x.t} role="button" tabIndex={0} onClick={()=>onOpen(x.t)} onKeyDown={e=>e.key==="Enter"&&onOpen(x.t)}>
-            <i>
-              {i === 0 ? <Landmark /> : i === 1 ? <WalletCards /> : <Gift />}
-            </i>
-            <div>
-              <span>{x.c}</span>
-              <h3>{x.t}</h3>
-              <strong>{x.v}</strong>
-              <p>{x.e}</p>
-            </div>
-            <ChevronRight size={19} />
-          </article>
-        ))}
-      </div>
+      <Header
+        eyebrow={loading?"맞춤 혜택을 찾는 중":`만 ${profile.age}세 · 연소득 ${profile.annual_income.toLocaleString()}만원 기준`}
+        title="추가 혜택"
+        onNotifications={onNotifications}
+      />
+      {loading ? (
+        <div className="sp-benefits sp-benefits-loading" aria-busy="true" aria-label="청년정책 불러오는 중">
+          <article /><article /><article />
+        </div>
+      ) : failed ? (
+        <p className="sp-benefits-empty" role="alert">
+          청년정책을 불러오지 못했어요.<br />잠시 후 다시 시도해주세요.
+        </p>
+      ) : shown.length===0 ? (
+        <p className="sp-benefits-empty">조건에 맞는 청년정책을 찾지 못했어요.</p>
+      ) : (
+        <>
+          {eligibleCount>0 && (
+            <p className="sp-benefits-summary">지원 조건을 충족하는 정책이 <b>{eligibleCount}건</b> 있어요.</p>
+          )}
+          <div className="sp-chips">
+            {categories.map(x=><button key={x} className={category===x?"on":""} onClick={()=>setCategory(x)}>{x}</button>)}
+          </div>
+          <div className="sp-benefits">
+            {shown.map(p=>{
+              const Icon=POLICY_ICONS[p.category_large??""]??Gift;
+              return (
+                <article key={p.id} role="button" tabIndex={0} onClick={()=>onOpen(p)} onKeyDown={e=>e.key==="Enter"&&onOpen(p)}>
+                  <i><Icon /></i>
+                  <div>
+                    <span>{p.category_large??"청년정책"}{p.category_medium?` · ${p.category_medium}`:""}</span>
+                    <h3>{p.name}</h3>
+                    {p.status && (
+                      <em className={`sp-policy-status ${p.status==="충족"?"ok":p.status==="확인 필요"?"maybe":"no"}`}>
+                        {p.status}
+                      </em>
+                    )}
+                    {p.support_content && <strong>{p.support_content}</strong>}
+                    {/* 미충족이면 사유를, 아니면 정책 설명을 보여준다 */}
+                    <p>{p.status==="미충족"&&p.reason?p.reason:(p.description??p.supervising_org??"")}</p>
+                  </div>
+                  <ChevronRight size={19} />
+                </article>
+              );
+            })}
+          </div>
+        </>
+      )}
     </>
   );
 }
@@ -554,6 +591,17 @@ export default function SavingsPrototype({user,onSignOut}:{user:User;onSignOut:(
   const recordContribution=async()=>{const amount=Number(contribution.amount.replace(/,/g,""));if(!contribution.productName){setNotice("먼저 적금 찾기에서 신청한 상품을 추가해주세요.");return;}if(!Number.isInteger(amount)||amount<=0){setNotice("올바른 납입 금액을 입력해주세요.");return;}try{await addSavingsContribution(clientId,contribution.productName,amount,contribution.date);await reloadState();setContributionOpen(false);setNotice("납입 기록이 저장되고 총 저축 자산에 반영됐어요.");}catch(e){setNotice(e instanceof Error?e.message:"저장에 실패했습니다");}};
   const quickPay=async(product:UserSavingsState["enrolled_products"][number])=>{if(!userState)return;const productPayments=userState.contributions.filter(x=>x.product_name===product.product_name);const amount=product.contribution_type==="step_up"?Number(product.monthly_amount??0)+Number(product.installment_step_amount??0)*productPayments.length:Number(product.monthly_amount??0);if(!Number.isInteger(amount)||amount<=0){setNotice("약정 납입액이 없어요. 상세 기록에서 금액을 입력해주세요.");openContribution();return;}try{await addSavingsContribution(clientId,product.product_name,amount,new Date().toISOString().slice(0,10));await reloadState();setNotice(`${product.product_name}\n\n이번 달 ${amount.toLocaleString()}원 납입을 기록했어요.`);}catch(e){setNotice(e instanceof Error?e.message:"납입 기록 저장에 실패했습니다");}};
   const enrollProduct=async(p:ProductView)=>{const amount=Number(enrollmentAmount);if(!Number.isInteger(amount)||amount<p.minMonthly||(p.maxMonthly!==null&&amount>p.maxMonthly)){setNotice(`납입액은 ${p.minMonthly.toLocaleString()}원${p.maxMonthly?`~${p.maxMonthly.toLocaleString()}원`:" 이상"}으로 입력해주세요.`);return;}try{await addEnrolledProduct(clientId,{product_id:p.id,product_name:p.name,bank:p.org,status:"가입완료",interest_rate:p.rate,monthly_amount:amount,contribution_type:p.contributionType,payment_frequency:p.paymentFrequency,min_amount:p.minMonthly,max_amount:p.maxMonthly??undefined,installment_step_amount:p.installmentStep??undefined});await reloadState();setSelectedProduct(null);setNotice("가입 조건과 약정 납입액을 플랜에 반영했어요.");}catch(e){setNotice(e instanceof Error?e.message:"상품을 추가하지 못했습니다.");}};
+  // 정책 카드를 열면 지원 내용·신청 기간·자격 판정 사유를 정리해 보여준다.
+  const openPolicy=(p:YouthPolicy)=>{
+    const lines=[p.support_content,p.description].filter(Boolean);
+    if(p.apply_period)lines.push(`신청 기간: ${p.apply_period}`);
+    if(p.supervising_org)lines.push(`주관: ${p.supervising_org}`);
+    if(p.status==="미충족"&&p.reason)lines.push(`자격 확인: ${p.reason}`);
+    else if(p.status==="확인 필요")lines.push("자격 확인: 추가 조건이 있어 기관 안내를 확인해주세요.");
+    const url=p.apply_url??p.ref_url;
+    if(url)lines.push(`신청/안내: ${url}`);
+    setNotice(`${p.name}\n\n${lines.join("\n\n")}`);
+  };
   const showNotifications=()=>setNotice("새 알림\n\n• 이번 달 저축 목표를 확인해보세요.\n• 관심 적금의 금리 정보가 갱신됐어요.\n• 청년월세 지원 신청 기간을 확인해보세요.");
   const toggleSaved=async(p:ProductView)=>{if(!userState)return;const saved=!userState.saved_product_ids.includes(p.id);try{await setSavedProduct(clientId,p.id,saved);await reloadState();setNotice(saved?"관심 상품에 저장했어요.":"관심 상품에서 삭제했어요.");}catch(e){setNotice(e instanceof Error?e.message:"저장 상태를 변경하지 못했습니다.");}};
   const openPlanEdit=()=>{if(!userState)return;setPlanDraft({target:String(userState.plan.target_amount),monthly:String(userState.plan.monthly_target),current:String(userState.plan.current_amount),starts:Object.fromEntries(userState.enrolled_products.map(x=>[x.product_id,x.started_at?.slice(0,7)??""]))});setPlanEditOpen(true);};
@@ -577,7 +625,7 @@ export default function SavingsPrototype({user,onSignOut}:{user:User;onSignOut:(
         ) : tab === "plan" ? (
           <SavingsPlanV2Prototype clientId={clientId} live embedded initialState={userState} onChanged={reloadState} onRecord={openContribution} />
         ) : tab === "benefits" ? (
-          <BenefitsPage onNotifications={showNotifications} onOpen={title=>setNotice(`${title}\n\n지원 대상과 신청 기간을 확인한 뒤 해당 기관 홈페이지에서 신청할 수 있어요.`)} />
+          <BenefitsPage profile={userState.profile} onNotifications={showNotifications} onOpen={openPolicy} />
         ) : (
           <MyPage state={userState} user={user} onProfile={()=>setReplanning(true)} onMenu={openMenu} onNotifications={showNotifications} onSignOut={onSignOut} />
         )}

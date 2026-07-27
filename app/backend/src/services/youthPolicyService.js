@@ -238,7 +238,18 @@ async function getCachedPolicies() {
   return policyCacheLoading;
 }
 
-async function listYouthPolicies({ age, keyword, personalIncome, incomeBracket } = {}) {
+const STATUS_ORDER = { '충족': 0, '확인 필요': 1, '미충족': 2 };
+
+// 정렬 우선순위: ① 충족 > 확인 필요 > 미충족
+// ② 나이 범위가 좁을수록(더 특정 대상을 겨냥한 정책일수록) 상위 노출
+function comparePolicies(a, b) {
+  if (a.status !== b.status) return STATUS_ORDER[a.status] - STATUS_ORDER[b.status];
+  const spanA = (a.max_age ?? 999) - (a.min_age ?? 0);
+  const spanB = (b.max_age ?? 999) - (b.min_age ?? 0);
+  return spanA - spanB;
+}
+
+async function listYouthPolicies({ age, keyword, personalIncome, incomeBracket, limit } = {}) {
   const data = await getCachedPolicies();
 
   // 자격 미달(미충족) 정책도 걸러내지 않고 사유와 함께 그대로 포함한다. 검색어만 필터링.
@@ -248,11 +259,17 @@ async function listYouthPolicies({ age, keyword, personalIncome, incomeBracket }
 
   // age/personalIncome 둘 다 없으면(사용자 컨텍스트 없이 목록만 조회) 판정 자체가 의미 없어 status를 null로 둔다
   const hasUserContext = age != null || personalIncome != null;
-  return matched.map(p => {
+  const judged = matched.map(p => {
     if (!hasUserContext) return { ...p, status: null, reason: null };
     const { status, reason } = judgePolicy(p, age, personalIncome, incomeBracket);
     return { ...p, status, reason };
   });
+
+  // 판정 결과가 있을 때만 정렬한다(없으면 최신순 그대로 유지).
+  if (hasUserContext) judged.sort(comparePolicies);
+
+  // 정책이 수천 건이라 전량을 그대로 내려보내면 응답이 수 MB가 된다.
+  return limit ? judged.slice(0, limit) : judged;
 }
 
 module.exports = { syncYouthPolicies, listYouthPolicies, invalidatePolicyCache };

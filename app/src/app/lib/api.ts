@@ -202,6 +202,58 @@ export async function fetchRecommendations(
   }
 }
 
+export type PolicyStatus = "충족" | "확인 필요" | "미충족";
+
+/** 온통청년 청년정책. status/reason은 나이·소득을 넘겼을 때만 채워진다. */
+export interface YouthPolicy {
+  id: string;
+  plcy_no: string;
+  name: string;
+  description: string | null;
+  support_content: string | null;
+  min_age: number | null;
+  max_age: number | null;
+  income_min: number | null;
+  income_max: number | null;
+  income_etc: string | null;
+  eligibility_text: string | null;
+  exclusion_text: string | null;
+  category_large: string | null;
+  category_medium: string | null;
+  keywords: string | null;
+  supervising_org: string | null;
+  operating_org: string | null;
+  apply_period: string | null;
+  apply_url: string | null;
+  ref_url: string | null;
+  status: PolicyStatus | null;
+  reason: string | null;
+}
+
+/**
+ * 백엔드(/api/youth-policy) 호출. 나이·연소득(만원)을 넘기면 자격 판정과 미충족 사유가
+ * 함께 내려오고, 충족 > 확인 필요 > 미충족 순으로 정렬된다.
+ * 실패 시 null 반환 — 호출부는 에러 상태로 처리.
+ */
+export async function fetchYouthPolicies(
+  params: { age?: number; income?: number; bracket?: number; keyword?: string; limit?: number } = {},
+): Promise<YouthPolicy[] | null> {
+  const query = new URLSearchParams();
+  if (params.age != null) query.set("age", String(params.age));
+  if (params.income != null) query.set("income", String(params.income));
+  if (params.bracket != null) query.set("bracket", String(params.bracket));
+  if (params.keyword) query.set("keyword", params.keyword);
+  if (params.limit != null) query.set("limit", String(params.limit));
+
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/youth-policy?${query.toString()}`);
+    if (!res.ok) return null;
+    return await res.json();
+  } catch {
+    return null;
+  }
+}
+
 /**
  * 백엔드(/api/products) 호출. 실패 시 null 반환 — 호출부는 로딩/에러 상태로 처리.
  */
