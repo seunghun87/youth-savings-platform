@@ -16,12 +16,14 @@ function maxRate(p) {
 
 router.get('/', publicReadLimiter, async (req, res, next) => {
   try {
-    // 가입 제한이 있는 상품(반려동물·자녀 전용 등)은 목록에서 제외한다
-    const { data, error } = await supabase
-      .from('savings_product')
-      .select('*')
-      .eq('available_for_signup', true)
-      .or(JOINABLE_FILTER);
+    // 기본은 가입 제한이 있는 상품(반려동물·자녀 전용 등)을 제외한다.
+    // ?include_restricted=true 를 주면 제한 상품도 함께 내려보내며,
+    // 호출부가 join_deny로 구분해 별도 코너에 보여줄 수 있다.
+    const includeRestricted = req.query.include_restricted === 'true';
+    let query = supabase.from('savings_product').select('*').eq('available_for_signup', true);
+    if (!includeRestricted) query = query.or(JOINABLE_FILTER);
+
+    const { data, error } = await query;
     if (error) throw error;
 
     const products = data
@@ -42,6 +44,11 @@ router.get('/', publicReadLimiter, async (req, res, next) => {
         payment_frequency: p.payment_frequency || 'monthly',
         installment_step_amount: p.installment_step_amount,
         source: p.source,
+        // 가입 제한 정보. include_restricted로 받아온 상품을 호출부가 구분하고
+        // "어떤 조건이 붙는지"를 사용자에게 보여줄 수 있도록 함께 내려보낸다.
+        join_deny: p.join_deny ?? null,
+        join_member: p.join_member ?? null,
+        special_note: p.special_note ?? null,
       }))
       .sort((a, b) => b.rate - a.rate);
 

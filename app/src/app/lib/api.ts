@@ -115,6 +115,12 @@ export interface DbSavingsProduct {
   payment_frequency: "monthly" | "weekly" | "daily";
   installment_step_amount: number | null;
   source: "manual" | "finlife";
+  /** 가입제한 1=제한없음 2=서민전용 3=일부제한. 정책 상품은 null */
+  join_deny: number | null;
+  /** 가입대상 원문 (예: "반려동물을 등록한 개인") */
+  join_member: string | null;
+  /** 우대조건·기타 유의사항 */
+  special_note: string | null;
 }
 
 export interface UserSavingsState {
@@ -305,11 +311,14 @@ export async function fetchYouthPolicies(
 /**
  * 백엔드(/api/products) 호출. 실패 시 null 반환 — 호출부는 로딩/에러 상태로 처리.
  */
-export async function fetchSavingsProducts(): Promise<
-  DbSavingsProduct[] | null
-> {
+export async function fetchSavingsProducts(
+  opts: { includeRestricted?: boolean } = {},
+): Promise<DbSavingsProduct[] | null> {
+  // includeRestricted를 주면 가입 조건이 있는 상품(join_deny 2·3)도 함께 내려온다.
+  // 호출부가 join_deny로 나눠 별도 코너에 보여줄 수 있다.
+  const query = opts.includeRestricted ? "?include_restricted=true" : "";
   try {
-    const res = await fetch(`${API_BASE_URL}/api/products`);
+    const res = await fetch(`${API_BASE_URL}/api/products${query}`);
     if (!res.ok) return null;
     return await res.json();
   } catch {
