@@ -1,0 +1,10 @@
+@import './fonts.css';
+@import './tailwind.css';
+@import './theme.css';
+@keyframes auth-spin {
+  to { transform: rotate(360deg); }
+}
+
+.auth-spinner {
+  animation: auth-spin 0.8s linear infinite;
+}

@@ -1,0 +1,170 @@
+{
+  "input": "C:\\side_pj\\app_finacial\\docs\\\uccad\ub144\uae08\uc735\uc9c0\uc6d0\ud50c\ub7ab\ud3fc GitHub \ud1b5\ud569\uc124\uacc4\uc11c v2.0.docx",
+  "fonts_by_char_count": {
+    "Consolas": 1874
+  },
+  "direct_run_formatting_runs": 768,
+  "direct_paragraph_formatting_paragraphs": 802,
+  "heading_like_paragraphs_not_heading_style": [
+    {
+      "para_index": 1,
+      "text": "\uccad\ub144 \uae08\uc735\uc9c0\uc6d0 \ud1b5\ud569 \ud50c\ub7ab\ud3fc",
+      "style": "Normal"
+    },
+    {
+      "para_index": 3,
+      "text": "\ud1b5\ud569 \uc124\uacc4\uc11c",
+      "style": "Normal"
+    },
+    {
+      "para_index": 152,
+      "text": "\uc6a9\uc5b4",
+      "style": "Normal"
+    },
+    {
+      "para_index": 153,
+      "text": "\uc815\uc758",
+      "style": "Normal"
+    },
+    {
+      "para_index": 162,
+      "text": "\ubc84\uc804",
+      "style": "Normal"
+    },
+    {
+      "para_index": 163,
+      "text": "\uc77c\uc790",
+      "style": "Normal"
+    },
+    {
+      "para_index": 164,
+      "text": "\uc791\uc131\uc790",
+      "style": "Normal"
+    },
+    {
+      "para_index": 165,
+      "text": "\ub0b4\uc6a9",
+      "style": "Normal"
+    },
+    {
+      "para_index": 174,
+      "text": "\uad6c\ubd84",
+      "style": "Normal"
+    },
+    {
+      "para_index": 175,
+      "text": "\ub0b4\uc6a9",
+      "style": "Normal"
+    },
+    {
+      "para_index": 184,
+      "text": "ID",
+      "style": "Normal"
+    },
+    {
+      "para_index": 185,
+      "text": "\ud654\uba74\uba85",
+      "style": "Normal"
+    },
+    {
+      "para_index": 186,
+      "text": "\ub77c\uc6b0\ud2b8/\ubdf0",
+      "style": "Normal"
+    },
+    {
+      "para_index": 187,
+      "text": "\ud558\ub2e8 \ud0ed",
+      "style": "Normal"
+    },
+    {
+      "para_index": 188,
+      "text": "\uc9c4\uc785 \uacbd\ub85c",
+      "style": "Normal"
+    },
+    {
+      "para_index": 239,
+      "text": "\uad6c\uc131\uc694\uc18c",
+      "style": "Normal"
+    },
+    {
+      "para_index": 240,
+      "text": "\uaddc\uaca9 / \ub3d9\uc791",
+      "style": "Normal"
+    },
+    {
+      "para_index": 255,
+      "text": "Step",
+      "style": "Normal"
+    },
+    {
+      "para_index": 256,
+      "text": "\ub77c\ubca8",
+      "style": "Normal"
+    },
+    {
+      "para_index": 257,
+      "text": "\uc785\ub825 UI",
+      "style": "Normal"
+    }
+  ],
+  "examples": {
+    "direct_paragraph_formatting": [
+      {
+        "para_index": 1,
+        "text": "\uccad\ub144 \uae08\uc735\uc9c0\uc6d0 \ud1b5\ud569 \ud50c\ub7ab\ud3fc",
+        "style": "Normal"
+      },
+      {
+        "para_index": 2,
+        "text": "Financial Support Platform App",
+        "style": "Normal"
+      },
+      {
+        "para_index": 3,
+        "text": "\ud1b5\ud569 \uc124\uacc4\uc11c",
+        "style": "Normal"
+      },
+      {
+        "para_index": 4,
+        "text": "\ud654\uba74\uc124\uacc4 \u00b7 \uae30\ub2a5\uba85\uc138 \u00b7 \uc0c1\uc138\uc124\uacc4 (\ub370\uc774\ud130\ubaa8\ub378 / API)",
+        "style": "Normal"
+      },
+      {
+        "para_index": 5,
+        "text": "Version 2.0  |  2026-07-17",
+        "style": "Normal"
+      }
+    ],
+    "direct_run_formatting": [
+      {
+        "para_index": 1,
+        "run_text": "\uccad\ub144 \uae08\uc735\uc9c0\uc6d0 \ud1b5\ud569 \ud50c\ub7ab\ud3fc",
+        "style": "Normal"
+      },
+      {
+        "para_index": 2,
+        "run_text": "Financial Support Platform App",
+        "style": "Normal"
+      },
+      {
+        "para_index": 3,
+        "run_text": "\ud1b5\ud569 \uc124\uacc4\uc11c",
+        "style": "Normal"
+      },
+      {
+        "para_index": 4,
+        "run_text": "\ud654\uba74\uc124\uacc4 \u00b7 \uae30\ub2a5\uba85\uc138 \u00b7 \uc0c1\uc138\uc124\uacc4 (\ub370\uc774\ud130\ubaa8\ub378 / API)",
+        "style": "Normal"
+      },
+      {
+        "para_index": 5,
+        "run_text": "Version 2.0  |  2026-07-17",
+        "style": "Normal"
+      }
+    ]
+  },
+  "notes": [
+    "Direct formatting is not always wrong, but it often causes inconsistent output when templates change.",
+    "Heading-like paragraphs not using Heading styles can break TOC and accessibility."
+  ]
+}
