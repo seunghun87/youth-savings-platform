@@ -13,6 +13,7 @@ import SavingsPrototype from "./SavingsPrototype";
 import PlanPrototype from "./PlanPrototype";
 import SavingsPlanV2Prototype from "./SavingsPlanV2Prototype";
 import AuthGate from "./AuthGate";
+import IosInstallHint from "./IosInstallHint";
 import type { Session } from "@supabase/supabase-js";
 import { supabase } from "./lib/supabase";
 
@@ -1063,5 +1064,11 @@ function AppContent({ session }: { session: Session }) {
 }
 
 export default function App() {
-  return <AuthGate>{session => <AppContent session={session} />}</AuthGate>;
+  return (
+    <>
+      <AuthGate>{session => <AppContent session={session} />}</AuthGate>
+      {/* 아이폰은 앱 설치가 안 되므로 홈 화면 추가 방법을 한 번 안내한다 */}
+      <IosInstallHint />
+    </>
+  );
 }
