@@ -33,6 +33,7 @@ import {
   addEnrolledProduct,
   deleteSavingsContribution,
   fetchRecommendations,
+  fetchAllocation,
   fetchSavingsProducts,
   fetchUserSavingsState,
   fetchYouthPolicies,
@@ -41,6 +42,7 @@ import {
   updateSavingsContribution,
   updateEnrolledProduct,
   updateUserProfile,
+  type AllocationResult,
   type RecommendResult,
   type UserSavingsState,
   type YouthPolicy,
@@ -230,10 +232,94 @@ function Product({ p, onOpen, saved=false, onSave }: { p: ProductView; onOpen:(p
     </article>
   );
 }
+// 월 저축액을 여러 상품에 나눠 담았을 때의 결과. 한 상품의 월 한도를 넘는 금액을
+// 다음 상품으로 넘기는 계산이라, 한 상품에 몰아넣는 것보다 이자가 커질 수 있다.
+function AllocationCard({state}:{state:UserSavingsState}) {
+  const [result,setResult]=useState<AllocationResult|null>(null);
+  const [loading,setLoading]=useState(true);
+  const [open,setOpen]=useState(false);
+
+  const monthly=Math.round(Number(state.plan.monthly_target)/10000);        // 만원
+  const target=Number(state.plan.target_amount);
+  const periodMonths=Math.max(1,Math.ceil(target/Math.max(1,Number(state.plan.monthly_target))));
+
+  useEffect(()=>{
+    let active=true;
+    setLoading(true);
+    fetchAllocation({
+      monthly_amount:monthly,
+      period_months:Math.min(600,periodMonths),
+      age:state.profile.age,
+      personal_income:Math.max(0,Math.round(Number(state.profile.annual_income))),
+    })
+      .then(data=>{if(active)setResult(data)})
+      .finally(()=>{if(active)setLoading(false)});
+    return ()=>{active=false};
+  },[monthly,periodMonths,state.profile.age,state.profile.annual_income]);
+
+  // 월 저축액이 없거나 배분할 상품을 못 찾으면 이 카드를 아예 숨긴다
+  if(loading||!result||result.allocations.length===0||monthly<=0) return null;
+
+  const totalInterest=result.allocations.reduce((sum,x)=>sum+x.aftertax_interest,0);
+  const shown=open?result.allocations:result.allocations.slice(0,2);
+
+  return (
+    <section className="sp-split">
+      <div className="sp-split-head">
+        <div>
+          <span>월 {monthly.toLocaleString()}만 원을 나눠 담으면</span>
+          <strong>세후 이자 약 {Math.round(totalInterest/10000).toLocaleString()}만 원</strong>
+        </div>
+        <em>{result.allocations.length}개 상품</em>
+      </div>
+
+      <div className="sp-split-bar" aria-label="상품별 배분 비율">
+        {result.allocations.map((a,i)=>(
+          <i key={a.name}
+             style={{width:`${a.monthly_allocation/Math.max(1,result.total_monthly_allocated)*100}%`,
+                     background:segmentColors[i%segmentColors.length]}}
+             title={`${a.name} ${a.monthly_allocation.toLocaleString()}만 원`} />
+        ))}
+      </div>
+
+      <ul className="sp-split-list">
+        {shown.map((a,i)=>(
+          <li key={a.name}>
+            <i style={{background:segmentColors[i%segmentColors.length]}} />
+            <div>
+              <b>{a.name}</b>
+              <span>{a.bank} · 연 {a.base_rate.toFixed(2)}% · {a.calculation_period_months}개월</span>
+            </div>
+            <strong>월 {a.monthly_allocation.toLocaleString()}만 원</strong>
+          </li>
+        ))}
+      </ul>
+
+      {result.allocations.length>2 && (
+        <button className="sp-split-more" onClick={()=>setOpen(v=>!v)}>
+          {open?"접기":`나머지 ${result.allocations.length-2}개 더 보기`}
+        </button>
+      )}
+
+      {result.unallocated_amount>0 && (
+        <p className="sp-split-note">
+          상품별 월 한도를 다 채워도 <b>{result.unallocated_amount.toLocaleString()}만 원</b>이 남아요.
+          예금이나 다른 상품을 함께 알아보세요.
+        </p>
+      )}
+      <p className="sp-split-caption">
+        가입 가능한 상품만 대상으로, 금리가 높은 순서로 월 한도까지 채워 계산했어요.
+        우대금리는 반영되지 않은 참고용 수치예요.
+      </p>
+    </section>
+  );
+}
+
 function FindPage({
   items,
   loading,
   savedIds,
+  state,
   onProduct,
   onSave,
   onNotifications,
@@ -241,6 +327,7 @@ function FindPage({
   items: ProductView[];
   loading: boolean;
   savedIds:string[];
+  state:UserSavingsState;
   onProduct:(p:ProductView)=>void;
   onSave:(p:ProductView)=>void;
   onNotifications:()=>void;
@@ -263,6 +350,7 @@ function FindPage({
           placeholder="적금 상품을 검색해보세요"
         />
       </label>
+      <AllocationCard state={state} />
       <div className="sp-chips">
         {filters.map(f=><button key={f.id} className={mode===f.id?"on":""} onClick={()=>setMode(f.id)}>{f.label}</button>)}
       </div>
@@ -621,7 +709,7 @@ export default function SavingsPrototype({user,onSignOut}:{user:User;onSignOut:(
         {tab === "home" ? (
           <HomePage state={userState} onRecord={openContribution} onQuickPay={quickPay} onNotifications={showNotifications} onShowAll={()=>setTab("find")} onProduct={setSelectedProduct} onBenefits={()=>setTab("benefits")} />
         ) : tab === "find" ? (
-          <FindPage items={rankedItems} loading={loading} savedIds={userState.saved_product_ids} onProduct={setSelectedProduct} onSave={toggleSaved} onNotifications={showNotifications} />
+          <FindPage items={rankedItems} loading={loading} savedIds={userState.saved_product_ids} state={userState} onProduct={setSelectedProduct} onSave={toggleSaved} onNotifications={showNotifications} />
         ) : tab === "plan" ? (
           <SavingsPlanV2Prototype clientId={clientId} live embedded initialState={userState} onChanged={reloadState} onRecord={openContribution} />
         ) : tab === "benefits" ? (

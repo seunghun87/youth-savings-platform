@@ -12,3 +12,23 @@
 .sp-policy-status.no{background:#f1f2f1;color:#7c847e}
 /* 정책 안내 모달에는 신청 URL이 들어가 긴 문자열이 줄바꿈되어야 한다 */
 .sp-notice-modal p{overflow-wrap:anywhere}
+
+/* 저축액 배분 카드 (적금 찾기 탭) */
+.sp-split{margin:0 0 22px;padding:18px;border:1px solid var(--spline);border-radius:18px;background:#fff}
+.sp-split-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
+.sp-split-head span{display:block;color:var(--spmuted);font-size:11px}
+.sp-split-head strong{display:block;margin-top:4px;color:var(--sp);font-size:19px;letter-spacing:-.03em}
+.sp-split-head em{flex:none;padding:4px 9px;border-radius:99px;background:var(--spsoft);color:var(--sp);font-size:10px;font-style:normal;font-weight:700}
+.sp-split-bar{display:flex;height:8px;margin:15px 0 14px;overflow:hidden;border-radius:99px;background:#eef1ef}
+.sp-split-bar i{display:block;height:100%}
+.sp-split-list{margin:0;padding:0;list-style:none;display:grid;gap:12px}
+.sp-split-list li{display:flex;align-items:center;gap:10px}
+.sp-split-list li>i{flex:none;width:9px;height:9px;border-radius:50%}
+.sp-split-list li>div{display:flex;min-width:0;flex:1;flex-direction:column}
+.sp-split-list b{font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sp-split-list span{margin-top:2px;color:var(--spmuted);font-size:10px}
+.sp-split-list strong{flex:none;font-size:12px}
+.sp-split-more{width:100%;margin-top:13px;padding:9px;border:1px solid var(--spline);border-radius:11px;background:#fff;color:var(--spmuted);font-size:11px}
+.sp-split-note{margin:13px 0 0;padding:10px;border-radius:10px;background:#fffbf0;color:#9b761f;font-size:10px;line-height:1.5}
+.sp-split-note b{color:#5d4b20}
+.sp-split-caption{margin:10px 0 0;color:#a3aba5;font-size:9px;line-height:1.5}

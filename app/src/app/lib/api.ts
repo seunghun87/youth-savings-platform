@@ -206,6 +206,50 @@ export async function fetchRecommendations(
   }
 }
 
+/** 배분 결과의 상품 한 건. 금액 단위는 만원(monthly_allocation)과 원(expected_amount 등)이 섞여 있다. */
+export interface Allocation {
+  name: string;
+  bank: string;
+  base_rate: number;
+  /** 이 상품에 넣을 월 납입액 (만원) */
+  monthly_allocation: number;
+  /** 실제로 적용되는 상품 옵션 기간 (개월) */
+  calculation_period_months: number;
+  /** 만기 수령액 (원) */
+  expected_amount: number;
+  principal: number;
+  aftertax_interest: number;
+}
+
+export interface AllocationResult {
+  allocations: Allocation[];
+  /** 실제로 배분된 월 저축액 (만원) */
+  total_monthly_allocated: number;
+  /** 상품 한도를 다 채워도 담지 못한 금액 (만원). 0보다 크면 안내 필요 */
+  unallocated_amount: number;
+  total_expected_amount: number;
+}
+
+/**
+ * 백엔드(/api/allocate) 호출. 월 저축액을 금리 높은 상품부터 한도까지 나눠 담는다.
+ * 실패 시 null 반환 — 호출부는 이 기능을 숨기고 넘어간다.
+ */
+export async function fetchAllocation(
+  req: { monthly_amount: number; period_months: number; age: number; personal_income: number },
+): Promise<AllocationResult | null> {
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/allocate`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(req),
+    });
+    if (!res.ok) return null;
+    return await res.json();
+  } catch {
+    return null;
+  }
+}
+
 export type PolicyStatus = "충족" | "확인 필요" | "미충족";
 
 /** 온통청년 청년정책. status/reason은 나이·소득을 넘겼을 때만 채워진다. */
