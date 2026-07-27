@@ -1,6 +1,6 @@
 const supabase = require('./supabaseClient');
 const { calculateMaturityAmount } = require('./calculationService');
-const { pickTerm, meetsBaseEligibility } = require('./productRules');
+const { pickTerm, meetsBaseEligibility, isJoinable, JOINABLE_FILTER } = require('./productRules');
 
 // 그리디 배분: 금리 높은 상품부터 월 한도까지 채우고, 남은 예산을 다음 상품으로 넘긴다.
 // 단리 + 월한도 제약에서는 그리디가 최적(또는 최적에 매우 근접)이라 knapsack(DP)까지 갈 필요 없음.
@@ -10,12 +10,14 @@ async function allocateSavings({ monthly_amount, period_months, age, personal_in
   const { data: products, error } = await supabase
     .from('savings_product')
     .select('*')
-    .eq('available_for_signup', true);
+    .eq('available_for_signup', true)
+    .or(JOINABLE_FILTER);
   if (error) throw error;
 
   // 월 한도(monthly_limit)는 여기서 필터링 기준으로 쓰지 않는다.
   // 배분 단계에서 상품별 한도까지만 나눠 담을 것이므로, 자격 자체는 나이/소득/기간만 본다.
   const candidates = products
+    .filter(isJoinable)
     .filter(p => meetsBaseEligibility(p, { age, period_months, personal_income }))
     .map(p => ({ product: p, term: pickTerm(p, period_months) }))
     .filter(c => c.term !== null)

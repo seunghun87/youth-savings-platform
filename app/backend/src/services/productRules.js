@@ -41,6 +41,24 @@ const meetsIncome = (product, personalIncome) =>
 const meetsMonthlyLimit = (product, monthlyAmount) =>
   product.monthly_limit == null || monthlyAmount <= product.monthly_limit;
 
+// ─────────────────────────────────────────────
+// 가입 제한 (금감원 join_deny: 1=제한없음, 2=서민전용, 3=일부제한)
+// ─────────────────────────────────────────────
+
+// 반려동물 등록·자녀 보유처럼 특정 조건을 요구하는 상품은 청년 일반 사용자가
+// 가입할 수 없는데도 금리가 높아 추천 상위를 차지한다. 목록·추천에서 제외한다.
+// 데이터는 지우지 않으므로, 조건을 판정할 프로필 정보가 생기면 되살릴 수 있다.
+//
+// join_deny가 NULL인 경우는 두 가지이며 둘 다 노출한다.
+//   ① 정책 상품(manual) — 금감원 데이터가 아니라 이 필드 자체가 없다
+//   ② 아직 재동기화하지 않은 기존 finlife 행 — 값이 채워지기 전까지 기존 동작을 유지
+const JOIN_DENY_NONE = 1;
+
+const isJoinable = product => product.join_deny == null || Number(product.join_deny) === JOIN_DENY_NONE;
+
+// PostgREST .or() 필터 문자열. 위 isJoinable과 같은 조건을 DB에서 미리 걸러 응답 크기를 줄인다.
+const JOINABLE_FILTER = `join_deny.is.null,join_deny.eq.${JOIN_DENY_NONE}`;
+
 // 나이·기간·소득만 보는 기본 자격. 월 납입 한도는 포함하지 않는다.
 // 배분(allocate)은 한 상품의 한도를 넘는 금액을 다음 상품으로 넘기는 것이 목적이라
 // 월 한도를 자격 조건으로 쓰면 안 되기 때문이다. 추천(recommend)은 여기에 월 한도 조건을 더해서 쓴다.
@@ -59,4 +77,6 @@ module.exports = {
   meetsIncome,
   meetsMonthlyLimit,
   meetsBaseEligibility,
+  isJoinable,
+  JOINABLE_FILTER,
 };

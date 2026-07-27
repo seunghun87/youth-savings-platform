@@ -53,6 +53,20 @@ async function fetchAllProducts(apiKey) {
   return { baseMap, optionMap };
 }
 
+// 값이 없으면 공백 문자열이나 "-"로 오는 필드가 있어 trim 후 판정
+function toText(value) {
+  if (value === null || value === undefined) return null;
+  const trimmed = String(value).trim();
+  return trimmed === '' || trimmed === '-' ? null : trimmed;
+}
+
+// 가입제한 구분(1=제한없음, 2=서민전용, 3=일부제한). 값이 이상하면 null로 두고
+// 조회 시 제한없음과 동일하게 취급한다(데이터 오류로 상품이 통째로 사라지지 않게).
+function toJoinDeny(value) {
+  const parsed = parseInt(value, 10);
+  return parsed >= 1 && parsed <= 3 ? parsed : null;
+}
+
 function buildProducts(baseMap, optionMap) {
   const products = [];
 
@@ -90,6 +104,10 @@ function buildProducts(baseMap, optionMap) {
       min_period: Math.min(...terms),
       max_period: Math.max(...terms),
       monthly_limit: base.max_limit ? Math.round(base.max_limit / 10000) : null,
+      // 가입 제한 정보. 반려동물·자녀 등 특정 조건을 요구하는 상품을 걸러내는 근거가 된다
+      join_deny: toJoinDeny(base.join_deny),
+      join_member: toText(base.join_member),
+      special_note: [toText(base.spcl_cnd), toText(base.etc_note)].filter(Boolean).join('\n\n') || null,
       source: 'finlife',
     });
   }

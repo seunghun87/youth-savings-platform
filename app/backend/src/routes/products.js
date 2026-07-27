@@ -4,6 +4,7 @@ const supabase = require('../services/supabaseClient');
 const { syncProducts } = require('../services/finlifeService');
 const { syncLimiter, publicReadLimiter } = require('../middleware/rateLimiter');
 const { requireSyncSecret } = require('../middleware/requireSyncSecret');
+const { JOINABLE_FILTER } = require('../services/productRules');
 
 // 상품 목록 화면용. 기간별 옵션이 있으면 그중 최고금리를, 없으면 base_rate를 대표금리로 노출한다.
 function maxRate(p) {
@@ -15,7 +16,12 @@ function maxRate(p) {
 
 router.get('/', publicReadLimiter, async (req, res, next) => {
   try {
-    const { data, error } = await supabase.from('savings_product').select('*').eq('available_for_signup', true);
+    // 가입 제한이 있는 상품(반려동물·자녀 전용 등)은 목록에서 제외한다
+    const { data, error } = await supabase
+      .from('savings_product')
+      .select('*')
+      .eq('available_for_signup', true)
+      .or(JOINABLE_FILTER);
     if (error) throw error;
 
     const products = data

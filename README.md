@@ -143,7 +143,8 @@ cd app && npm run build         # 프로덕션 빌드
 - `CORS_ORIGIN` — 웹 서비스 주소가 주입됨
 - `VITE_API_BASE_URL` — 백엔드 서비스 주소가 주입됨
 
-배포 직후 데이터를 채우려면 동기화를 한 번 실행합니다.
+배포 직후, 그리고 마이그레이션을 새로 적용한 뒤에는 동기화를 한 번 실행합니다.
+(가입 제한 정보 등 상품 필드는 동기화 시점에 채워집니다)
 
 ```bash
 curl -X POST https://<배포주소>/api/products/sync     -H "x-sync-secret: <SYNC_SECRET>"

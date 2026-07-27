@@ -4,6 +4,8 @@ const {
   pickTerm,
   meetsBaseEligibility,
   meetsMonthlyLimit,
+  isJoinable,
+  JOINABLE_FILTER,
 } = require('../src/services/productRules');
 
 test('목표 기간을 상품 최대기간으로 자른 뒤 적용 가능한 최장 옵션을 고른다', () => {
@@ -59,4 +61,26 @@ test('제한 없음(null)인 소득·월납입 한도는 항상 통과한다', (
   assert.equal(meetsMonthlyLimit(unlimited, 99999), true);
   assert.equal(meetsMonthlyLimit({ monthly_limit: 70 }, 100), false);
   assert.equal(meetsMonthlyLimit({ monthly_limit: 70 }, 70), true);
+});
+
+test('가입 제한이 있는 상품은 제외한다', () => {
+  // 1=제한없음만 통과, 2=서민전용·3=일부제한(반려동물·자녀 전용 등)은 제외
+  assert.equal(isJoinable({ join_deny: 1 }), true);
+  assert.equal(isJoinable({ join_deny: 2 }), false);
+  assert.equal(isJoinable({ join_deny: 3 }), false);
+  // 문자열로 내려오는 경우도 같게 판정한다
+  assert.equal(isJoinable({ join_deny: '1' }), true);
+  assert.equal(isJoinable({ join_deny: '3' }), false);
+});
+
+test('join_deny가 없는 상품은 노출한다', () => {
+  // 정책 상품(manual)은 금감원 필드가 없다. 여기서 걸리면 청년도약계좌가 사라진다
+  assert.equal(isJoinable({ name: '청년도약계좌', source: 'manual' }), true);
+  assert.equal(isJoinable({ join_deny: null }), true);
+  assert.equal(isJoinable({ join_deny: undefined }), true);
+});
+
+test('DB 필터 문자열이 isJoinable과 같은 조건을 표현한다', () => {
+  // 두 곳에서 같은 규칙을 쓰므로 어긋나면 목록과 추천 결과가 달라진다
+  assert.equal(JOINABLE_FILTER, 'join_deny.is.null,join_deny.eq.1');
 });
