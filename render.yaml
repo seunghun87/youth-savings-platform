@@ -13,12 +13,11 @@ services:
     buildCommand: npm ci && npm run build
     staticPublishPath: dist
     envVars:
-      # 백엔드 서비스 주소를 자동으로 주입한다(호스트명만 오므로 앱에서 https를 붙인다)
+      # 배포된 백엔드 주소. 첫 배포로 백엔드 주소가 정해진 뒤 여기에 입력한다.
+      # 예) https://youth-savings-backend.onrender.com
+      # (스킴을 빠뜨려도 앱에서 https를 붙이므로 호스트명만 넣어도 동작한다)
       - key: VITE_API_BASE_URL
-        fromService:
-          type: web
-          name: youth-savings-backend
-          property: host
+        sync: false
       # Supabase 공개 설정. anon 키는 RLS로 보호되므로 브라우저 노출이 전제된 값이다
       - key: VITE_SUPABASE_URL
         sync: false
@@ -65,13 +64,11 @@ services:
         sync: false
 
       # ── 필수 보안 설정 ──
-      # 허용할 웹 프론트엔드 출처. 위 정적 사이트 주소가 자동으로 들어간다.
+      # 허용할 웹 프론트엔드 출처. 위 정적 사이트 주소를 입력한다.
+      # 예) https://youth-savings-web.onrender.com (여러 개면 콤마로 구분)
       # (Capacitor 앱의 출처는 코드에서 항상 허용하므로 여기 적을 필요 없다)
       - key: CORS_ORIGIN
-        fromService:
-          type: web
-          name: youth-savings-web
-          property: host
+        sync: false
       # /api/*/sync 호출에 필요한 x-sync-secret 값. Render가 자동 생성한다.
       # 미설정 시 동기화 API가 503으로 막혀 상품·정책 데이터를 갱신할 수 없다.
       - key: SYNC_SECRET

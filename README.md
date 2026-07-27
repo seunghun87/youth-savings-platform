@@ -129,19 +129,27 @@ cd app && npm run build         # 프로덕션 빌드
 
 저장소 루트의 `render.yaml`을 Blueprint로 사용합니다. 웹과 백엔드가 함께 배포됩니다.
 
-배포 시 입력해야 하는 값:
+두 서비스의 주소는 첫 배포가 끝나야 정해지므로, 서로를 가리키는 값은 배포 후에 채웁니다.
+
+**1차 — Blueprint 생성 시 입력**
 
 | 서비스 | 변수 |
 |---|---|
 | 백엔드 | `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `FINLIFE_API_KEY`, `YOUTH_POLICY_API_KEY` |
 | 웹 | `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` |
 
-나머지는 자동으로 채워집니다.
+`CORS_ORIGIN`과 `VITE_API_BASE_URL`은 아직 모르므로 비워둡니다.
 
-- `SYNC_SECRET` — Render가 생성
-- `TRUST_PROXY` — `1` 고정
-- `CORS_ORIGIN` — 웹 서비스 주소가 주입됨
-- `VITE_API_BASE_URL` — 백엔드 서비스 주소가 주입됨
+**2차 — 배포 후 주소가 나오면 입력**
+
+| 서비스 | 변수 | 값 |
+|---|---|---|
+| 백엔드 | `CORS_ORIGIN` | 웹 서비스 주소 |
+| 웹 | `VITE_API_BASE_URL` | 백엔드 서비스 주소 |
+
+웹은 이 값을 빌드 시점에 사용하므로, 입력 후 **수동 재배포(Manual Deploy)** 를 해야 반영됩니다.
+
+자동으로 채워지는 값: `SYNC_SECRET`(Render 생성), `TRUST_PROXY`(`1`), `PORT`(`3000`)
 
 배포 직후, 그리고 마이그레이션을 새로 적용한 뒤에는 동기화를 한 번 실행합니다.
 (가입 제한 정보 등 상품 필드는 동기화 시점에 채워집니다)
