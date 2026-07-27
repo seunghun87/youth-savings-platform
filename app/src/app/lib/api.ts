@@ -3,9 +3,13 @@ import { supabase } from "./supabase";
 
 // Android 에뮬레이터에서 10.0.2.2는 호스트 PC(localhost)를 가리키는 특수 주소.
 // 실제 기기/운영 배포 시에는 배포된 백엔드 도메인(HTTPS)으로 교체해야 한다.
+// Render Blueprint는 서비스 주소를 스킴 없이 호스트명만 넘겨준다(예: foo.onrender.com).
+// 사람이 주소를 붙여넣을 때도 스킴을 빠뜨리는 경우가 잦아, 없으면 https를 붙인다.
+const withScheme = (url: string) => (/^https?:\/\//i.test(url) ? url : `https://${url}`);
+
 const configuredApiBase = import.meta.env.VITE_API_BASE_URL?.trim();
 const API_BASE_URL = (
-  configuredApiBase ||
+  (configuredApiBase && withScheme(configuredApiBase)) ||
   (Capacitor.getPlatform() === "android"
     ? "http://10.0.2.2:3000"
     : import.meta.env.DEV

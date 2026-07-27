@@ -1,4 +1,45 @@
 services:
+  # ─────────────────────────────────────────────
+  # 프론트엔드 (정적 사이트)
+  # 아이폰은 앱 설치가 불가능하므로 이 주소를 Safari로 열어 사용한다.
+  # ("공유 → 홈 화면에 추가"를 하면 아이콘이 생기고 전체화면으로 뜬다)
+  # 안드로이드 APK도 같은 코드를 빌드하므로 화면은 동일하다.
+  # ─────────────────────────────────────────────
+  - type: web
+    runtime: static
+    name: youth-savings-web
+    branch: main
+    rootDir: app
+    buildCommand: npm ci && npm run build
+    staticPublishPath: dist
+    envVars:
+      # 백엔드 서비스 주소를 자동으로 주입한다(호스트명만 오므로 앱에서 https를 붙인다)
+      - key: VITE_API_BASE_URL
+        fromService:
+          type: web
+          name: youth-savings-backend
+          property: host
+      # Supabase 공개 설정. anon 키는 RLS로 보호되므로 브라우저 노출이 전제된 값이다
+      - key: VITE_SUPABASE_URL
+        sync: false
+      - key: VITE_SUPABASE_ANON_KEY
+        sync: false
+    routes:
+      # SPA: 어떤 경로로 들어와도 index.html을 돌려준다
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    headers:
+      - path: /*
+        name: X-Content-Type-Options
+        value: nosniff
+      - path: /*
+        name: Referrer-Policy
+        value: no-referrer
+
+  # ─────────────────────────────────────────────
+  # 백엔드 API
+  # ─────────────────────────────────────────────
   - type: web
     name: youth-savings-backend
     runtime: node
@@ -24,10 +65,13 @@ services:
         sync: false
 
       # ── 필수 보안 설정 ──
-      # 허용할 프론트엔드 출처. 미설정 시 모든 출처를 허용하므로 반드시 채울 것.
-      # 예) https://your-app.vercel.app (여러 개면 콤마로 구분, 슬래시 없이)
+      # 허용할 웹 프론트엔드 출처. 위 정적 사이트 주소가 자동으로 들어간다.
+      # (Capacitor 앱의 출처는 코드에서 항상 허용하므로 여기 적을 필요 없다)
       - key: CORS_ORIGIN
-        sync: false
+        fromService:
+          type: web
+          name: youth-savings-web
+          property: host
       # /api/*/sync 호출에 필요한 x-sync-secret 값. Render가 자동 생성한다.
       # 미설정 시 동기화 API가 503으로 막혀 상품·정책 데이터를 갱신할 수 없다.
       - key: SYNC_SECRET

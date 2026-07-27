@@ -76,7 +76,7 @@ npm run dev
 |---|---|---|
 | `SUPABASE_URL` | ✅ | Supabase 프로젝트 URL |
 | `SUPABASE_SERVICE_ROLE_KEY` | ✅ | RLS를 우회하는 전체 권한 키. **프론트엔드에 절대 노출 금지** |
-| `CORS_ORIGIN` | 운영 필수 | 허용할 프론트엔드 출처. 미설정 시 모든 출처 허용 |
+| `CORS_ORIGIN` | 운영 필수 | 허용할 웹 프론트엔드 출처. 미설정 시 모든 출처 허용. 앱(Capacitor) 출처는 코드에서 항상 허용하므로 적지 않아도 됨 |
 | `SYNC_SECRET` | 동기화 시 | `/api/*/sync` 호출에 필요한 비밀키. 미설정 시 동기화 API가 503 |
 | `TRUST_PROXY` | 배포 시 | 리버스 프록시 뒤에서 `1`로 설정. 미설정 시 요청 제한이 프록시 IP로 묶임 |
 | `FINLIFE_API_KEY` | 상품 동기화 시 | 금융감독원 API 인증키 |
@@ -117,15 +117,31 @@ cd app && npm run build         # 프로덕션 빌드
 
 ## 배포
 
-### 백엔드 (Render)
+플랫폼별 제공 방식은 다음과 같습니다.
 
-저장소 루트의 `render.yaml`을 Blueprint로 사용합니다. 배포 시 다음 값을 입력해야 합니다.
+| 플랫폼 | 방식 | 비고 |
+|---|---|---|
+| Android | APK 직접 설치 | 스토어 등록 없이 사이드로딩 |
+| iOS | 웹 (Safari) | 앱 설치는 Mac + 개발자 계정 필요. "홈 화면에 추가" 시 앱처럼 동작 |
+| 웹 | Render 정적 사이트 | 위 iOS 경로와 동일한 주소 |
 
-- `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`
-- `CORS_ORIGIN` — 배포된 프론트엔드 주소
-- `FINLIFE_API_KEY`, `YOUTH_POLICY_API_KEY`
+### Render (웹 + 백엔드)
 
-`SYNC_SECRET`은 Render가 자동 생성하며, `TRUST_PROXY`는 `1`로 고정됩니다.
+저장소 루트의 `render.yaml`을 Blueprint로 사용합니다. 웹과 백엔드가 함께 배포됩니다.
+
+배포 시 입력해야 하는 값:
+
+| 서비스 | 변수 |
+|---|---|
+| 백엔드 | `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `FINLIFE_API_KEY`, `YOUTH_POLICY_API_KEY` |
+| 웹 | `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` |
+
+나머지는 자동으로 채워집니다.
+
+- `SYNC_SECRET` — Render가 생성
+- `TRUST_PROXY` — `1` 고정
+- `CORS_ORIGIN` — 웹 서비스 주소가 주입됨
+- `VITE_API_BASE_URL` — 백엔드 서비스 주소가 주입됨
 
 배포 직후 데이터를 채우려면 동기화를 한 번 실행합니다.
 
@@ -133,6 +149,29 @@ cd app && npm run build         # 프로덕션 빌드
 curl -X POST https://<배포주소>/api/products/sync     -H "x-sync-secret: <SYNC_SECRET>"
 curl -X POST https://<배포주소>/api/youth-policy/sync -H "x-sync-secret: <SYNC_SECRET>"
 ```
+
+### Android APK
+
+APK를 만들기 전에 `app/.env`의 `VITE_API_BASE_URL`을 배포된 백엔드 주소로 지정해야 합니다.
+Vite는 빌드 시점에 이 값을 코드에 넣으므로, 비워두면 에뮬레이터 전용 주소(`10.0.2.2`)로 빌드됩니다.
+
+```bash
+cd app
+npm run build
+npx cap sync android
+cd android && ./gradlew assembleDebug
+```
+
+결과물: `app/android/app/build/outputs/apk/debug/app-debug.apk`
+폰으로 옮겨 설치하거나 `adb install`을 사용합니다. (Android Studio 또는 Android SDK + JDK 17 필요)
+
+### iOS
+
+iOS 플랫폼은 설정되어 있지 않습니다. 웹 주소를 Safari로 열고 **공유 → 홈 화면에 추가**를 하면
+주소창 없이 전체화면으로 실행되어 앱과 유사하게 사용할 수 있습니다.
+
+네이티브 앱이 필요하면 macOS와 Xcode, Apple Developer Program이 필요하며
+`@capacitor/ios` 추가와 함께 URL 스킴을 `Info.plist`에 등록해야 합니다.
 
 ### Supabase 인증 설정
 
