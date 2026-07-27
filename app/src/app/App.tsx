@@ -12,6 +12,9 @@ import DesignPreview from "./DesignPreview";
 import SavingsPrototype from "./SavingsPrototype";
 import PlanPrototype from "./PlanPrototype";
 import SavingsPlanV2Prototype from "./SavingsPlanV2Prototype";
+import AuthGate from "./AuthGate";
+import type { Session } from "@supabase/supabase-js";
+import { supabase } from "./lib/supabase";
 
 // ─────────────────────────────────────────────
 // Types
@@ -961,7 +964,7 @@ const DEFAULT_PLAN: PlanInfo = {
   interestCategories:["savings","support"],
 };
 
-export default function App() {
+function AppContent({ session }: { session: Session }) {
   const previewMode = new URLSearchParams(window.location.search).get("preview");
   if (previewMode === "plan") {
     return <PlanPrototype />;
@@ -970,16 +973,16 @@ export default function App() {
     return <SavingsPlanV2Prototype />;
   }
   if (previewMode === "onboarding") {
-    return <PlanPrototype clientId="demo-device" onSaved={() => window.location.assign(window.location.pathname)} />;
+    return <PlanPrototype clientId={session.user.id} onSaved={() => window.location.assign(window.location.pathname)} />;
   }
   if (previewMode !== "legacy" && previewMode !== "design") {
-    return <SavingsPrototype />;
+    return <SavingsPrototype user={session.user} onSignOut={() => supabase.auth.signOut()} />;
   }
   if (new URLSearchParams(window.location.search).get("preview") === "design") {
     return <DesignPreview />;
   }
   if (new URLSearchParams(window.location.search).get("preview") === "savings") {
-    return <SavingsPrototype />;
+    return <SavingsPrototype user={session.user} onSignOut={() => supabase.auth.signOut()} />;
   }
   const [screen, setScreen]       = useState<Screen>("onboarding");
   const [activeTab, setActiveTab] = useState<Tab>("home");
@@ -1047,4 +1050,8 @@ export default function App() {
       </div>
     </div>
   );
+}
+
+export default function App() {
+  return <AuthGate>{session => <AppContent session={session} />}</AuthGate>;
 }

@@ -3,6 +3,7 @@ const router = express.Router();
 const supabase = require('../services/supabaseClient');
 const { syncProducts } = require('../services/finlifeService');
 const { syncLimiter } = require('../middleware/rateLimiter');
+const { requireSyncSecret } = require('../middleware/requireSyncSecret');
 
 // 상품 목록 화면용. 기간별 옵션이 있으면 그중 최고금리를, 없으면 base_rate를 대표금리로 노출한다.
 function maxRate(p) {
@@ -45,7 +46,7 @@ router.get('/', async (req, res, next) => {
 });
 
 // STEP4: finlife 인증키 설정 후 사용 가능
-router.post('/sync', syncLimiter, async (req, res, next) => {
+router.post('/sync', syncLimiter, requireSyncSecret, async (req, res, next) => {
   try {
     const count = await syncProducts();
     res.json({ message: `시중 상품 동기화 완료: ${count}개 저장됨` });

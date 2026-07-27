@@ -43,12 +43,15 @@ async function allocateSavings({ monthly_amount, period_months, age, personal_in
     const amount = Math.min(remaining, limit);
     if (amount <= 0) continue;
 
+    const calculation = calculateMaturityAmount(amount * 10000, period_months, rate);
     allocations.push({
       name: product.name,
       bank: product.bank,
       base_rate: rate,
       monthly_allocation: amount,
-      expected_amount: calculateMaturityAmount(amount * 10000, period_months, rate),
+      expected_amount: calculation.maturityAmount,
+      principal: calculation.principal,
+      aftertax_interest: calculation.aftertaxInterest,
     });
     remaining -= amount;
   }

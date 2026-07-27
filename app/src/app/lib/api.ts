@@ -1,13 +1,29 @@
 import { Capacitor } from "@capacitor/core";
+import { supabase } from "./supabase";
 
 // Android 에뮬레이터에서 10.0.2.2는 호스트 PC(localhost)를 가리키는 특수 주소.
 // 실제 기기/운영 배포 시에는 배포된 백엔드 도메인(HTTPS)으로 교체해야 한다.
-const API_BASE_URL =
-  Capacitor.getPlatform() === "android"
+const configuredApiBase = import.meta.env.VITE_API_BASE_URL?.trim();
+const API_BASE_URL = (
+  configuredApiBase ||
+  (Capacitor.getPlatform() === "android"
     ? "http://10.0.2.2:3000"
-    : `${window.location.protocol}//${window.location.hostname}:3000`;
+    : import.meta.env.DEV
+      ? `${window.location.protocol}//${window.location.hostname}:3000`
+      : window.location.origin)
+).replace(/\/+$/, "");
 
-const LOCAL_STATE_KEY = "moa-demo-savings-state";
+const LOCAL_STATE_KEY = "moa-savings-state";
+const localStateKey = (clientId:string) => `${LOCAL_STATE_KEY}:${clientId}`;
+
+async function authFetch(input: RequestInfo | URL, init: RequestInit = {}) {
+  const { data } = await supabase.auth.getSession();
+  const headers = new Headers(init.headers);
+  if (data.session?.access_token) {
+    headers.set("Authorization", `Bearer ${data.session.access_token}`);
+  }
+  return fetch(input, { ...init, headers });
+}
 
 function createLocalState(clientId:string): UserSavingsState {
   return {
@@ -19,14 +35,14 @@ function createLocalState(clientId:string): UserSavingsState {
 
 function readLocalState(clientId:string): UserSavingsState {
   try {
-    const saved=window.localStorage.getItem(LOCAL_STATE_KEY);
+    const saved=window.localStorage.getItem(localStateKey(clientId));
     if(saved) return JSON.parse(saved) as UserSavingsState;
   } catch { /* 손상된 로컬 데이터는 초기 상태로 복구 */ }
   return createLocalState(clientId);
 }
 
 function writeLocalState(state:UserSavingsState) {
-  window.localStorage.setItem(LOCAL_STATE_KEY,JSON.stringify(state));
+  window.localStorage.setItem(localStateKey(state.profile.client_id),JSON.stringify(state));
 }
 
 export interface RecommendRequest {
@@ -91,27 +107,27 @@ export interface UserSavingsState {
 }
 
 export async function fetchUserSavingsState(clientId:string): Promise<UserSavingsState|null> {
-  try { const res=await fetch(`${API_BASE_URL}/api/user-state/${clientId}`); return res.ok?await res.json():readLocalState(clientId); } catch { return readLocalState(clientId); }
+  try { const res=await authFetch(`${API_BASE_URL}/api/user-state/${clientId}`); return res.ok?await res.json():readLocalState(clientId); } catch { return readLocalState(clientId); }
 }
 
 export async function addSavingsContribution(clientId:string, productName:string, amount:number, contributedAt?:string) {
-  try { const res=await fetch(`${API_BASE_URL}/api/user-state/${clientId}/contributions`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({product_name:productName,amount,contributed_at:contributedAt})});if(!res.ok){const body=await res.json().catch(()=>null);throw new Error(body?.error||"납입 기록 저장에 실패했습니다");}return res.json(); }
+  try { const res=await authFetch(`${API_BASE_URL}/api/user-state/${clientId}/contributions`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({product_name:productName,amount,contributed_at:contributedAt})});if(!res.ok){const body=await res.json().catch(()=>null);throw new Error(body?.error||"납입 기록 저장에 실패했습니다");}return res.json(); }
   catch(e){if(!(e instanceof TypeError))throw e;const state=readLocalState(clientId);if(!state.enrolled_products.some(x=>x.product_name===productName))throw new Error("가입한 적금 상품만 납입할 수 있습니다");const row={id:`local-contribution-${Date.now()}`,product_name:productName,amount,contributed_at:contributedAt||new Date().toISOString().slice(0,10)};state.contributions=[row,...state.contributions];state.plan.current_amount+=amount;writeLocalState(state);return row;}
 }
 
 export async function updateSavingsContribution(clientId:string, contributionId:string, data:{product_name:string;amount:number;contributed_at:string}) {
-  try {const res=await fetch(`${API_BASE_URL}/api/user-state/${clientId}/contributions/${contributionId}`,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify(data)});if(!res.ok)throw new Error("납입 기록 수정에 실패했습니다");return res.json();}
+  try {const res=await authFetch(`${API_BASE_URL}/api/user-state/${clientId}/contributions/${contributionId}`,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify(data)});if(!res.ok)throw new Error("납입 기록 수정에 실패했습니다");return res.json();}
   catch(e){if(!(e instanceof TypeError))throw e;const state=readLocalState(clientId),index=state.contributions.findIndex(x=>x.id===contributionId);if(index<0)throw new Error("납입 기록을 찾을 수 없습니다");const old=state.contributions[index];state.contributions[index]={...old,...data};state.plan.current_amount=Math.max(0,state.plan.current_amount+data.amount-old.amount);writeLocalState(state);return state.contributions[index];}
 }
 
 export async function deleteSavingsContribution(clientId:string, contributionId:string) {
-  try {const res=await fetch(`${API_BASE_URL}/api/user-state/${clientId}/contributions/${contributionId}`,{method:"DELETE"});if(!res.ok)throw new Error("납입 기록 삭제에 실패했습니다");}
+  try {const res=await authFetch(`${API_BASE_URL}/api/user-state/${clientId}/contributions/${contributionId}`,{method:"DELETE"});if(!res.ok)throw new Error("납입 기록 삭제에 실패했습니다");}
   catch(e){if(!(e instanceof TypeError))throw e;const state=readLocalState(clientId),old=state.contributions.find(x=>x.id===contributionId);if(!old)throw new Error("납입 기록을 찾을 수 없습니다");state.contributions=state.contributions.filter(x=>x.id!==contributionId);state.plan.current_amount=Math.max(0,state.plan.current_amount-old.amount);writeLocalState(state);}
 }
 
 export async function addEnrolledProduct(clientId:string, product:{product_id:string;product_name:string;bank:string;status:string;applied_at?:string;started_at?:string;matures_at?:string;interest_rate?:number;monthly_amount?:number;opening_balance?:number;contribution_type?:"fixed"|"flexible"|"step_up";payment_frequency?:"monthly"|"weekly"|"daily";min_amount?:number;max_amount?:number;installment_step_amount?:number}) {
   try {
-    const res=await fetch(`${API_BASE_URL}/api/user-state/${clientId}/enrolled-products`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(product)});
+    const res=await authFetch(`${API_BASE_URL}/api/user-state/${clientId}/enrolled-products`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(product)});
     if(!res.ok) { const body=await res.json().catch(()=>null); throw new Error(body?.error||"신청 상품 추가에 실패했습니다"); }
     return res.json();
   } catch(e) {
@@ -123,22 +139,22 @@ export async function addEnrolledProduct(clientId:string, product:{product_id:st
 }
 
 export async function updateEnrolledProduct(clientId:string, productId:string, changes:{started_at?:string;status?:string;ended_at?:string;termination_reason?:string;termination_payout?:number}) {
-  try {const res=await fetch(`${API_BASE_URL}/api/user-state/${clientId}/enrolled-products/${encodeURIComponent(productId)}`,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify(changes)});if(!res.ok)throw new Error("적금 정보를 수정하지 못했습니다");return res.json();}
+  try {const res=await authFetch(`${API_BASE_URL}/api/user-state/${clientId}/enrolled-products/${encodeURIComponent(productId)}`,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify(changes)});if(!res.ok)throw new Error("적금 정보를 수정하지 못했습니다");return res.json();}
   catch(e){if(!(e instanceof TypeError))throw e;const state=readLocalState(clientId),index=state.enrolled_products.findIndex(x=>x.product_id===productId);if(index<0)throw new Error("적금 정보를 찾을 수 없습니다");state.enrolled_products[index]={...state.enrolled_products[index],...changes,status:(changes.status||state.enrolled_products[index].status) as UserSavingsState["enrolled_products"][number]["status"]};writeLocalState(state);return state.enrolled_products[index];}
 }
 
 export async function updateSavingsPlan(clientId:string, plan:{target_amount:number;monthly_target:number;current_amount:number}) {
-  try { const res=await fetch(`${API_BASE_URL}/api/user-state/${clientId}/plan`,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify(plan)});if(!res.ok)throw new Error("플랜 저장에 실패했습니다");return res.json(); }
+  try { const res=await authFetch(`${API_BASE_URL}/api/user-state/${clientId}/plan`,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify(plan)});if(!res.ok)throw new Error("플랜 저장에 실패했습니다");return res.json(); }
   catch(e){if(!(e instanceof TypeError))throw e;const state=readLocalState(clientId);state.plan={...state.plan,...plan};writeLocalState(state);return state.plan;}
 }
 
 export async function updateUserProfile(clientId:string, profile:{name:string;age:number;city:string;annual_income:number;is_homeowner:boolean;income_reported:boolean;onboarding_completed:boolean}) {
-  try { const res=await fetch(`${API_BASE_URL}/api/user-state/${clientId}/profile`,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify(profile)});if(!res.ok)throw new Error("사용자 정보 저장에 실패했습니다");return res.json(); }
+  try { const res=await authFetch(`${API_BASE_URL}/api/user-state/${clientId}/profile`,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify(profile)});if(!res.ok)throw new Error("사용자 정보 저장에 실패했습니다");return res.json(); }
   catch(e){if(!(e instanceof TypeError))throw e;const state=readLocalState(clientId);state.profile={...state.profile,...profile};writeLocalState(state);return state.profile;}
 }
 
 export async function setSavedProduct(clientId:string, productId:string, saved:boolean) {
-  try {const res=await fetch(`${API_BASE_URL}/api/user-state/${clientId}/saved/${encodeURIComponent(productId)}`,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({saved})});if(!res.ok)throw new Error("관심 상품 저장에 실패했습니다");return res.json() as Promise<{saved:boolean}>;}
+  try {const res=await authFetch(`${API_BASE_URL}/api/user-state/${clientId}/saved/${encodeURIComponent(productId)}`,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({saved})});if(!res.ok)throw new Error("관심 상품 저장에 실패했습니다");return res.json() as Promise<{saved:boolean}>;}
   catch(e){if(!(e instanceof TypeError))throw e;const state=readLocalState(clientId);state.saved_product_ids=saved?Array.from(new Set([...state.saved_product_ids,productId])):state.saved_product_ids.filter(id=>id!==productId);writeLocalState(state);return {saved};}
 }
 

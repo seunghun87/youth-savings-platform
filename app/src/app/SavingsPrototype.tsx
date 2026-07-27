@@ -10,6 +10,7 @@ import {
   Gift,
   Home,
   Landmark,
+  LogOut,
   MapPin,
   PiggyBank,
   Search,
@@ -22,6 +23,7 @@ import {
   WalletCards,
   X,
 } from "lucide-react";
+import type { User } from "@supabase/supabase-js";
 import "./savings-prototype.css";
 import "./savings-prototype-v2.css";
 import "./savings-filters.css";
@@ -400,7 +402,7 @@ function BenefitsPage({onNotifications,onOpen}:{onNotifications:()=>void;onOpen:
     </>
   );
 }
-function MyPage({state,onProfile,onMenu,onNotifications}:{state:UserSavingsState;onProfile:()=>void;onMenu:(title:string)=>void;onNotifications:()=>void}) {
+function MyPage({state,user,onProfile,onMenu,onNotifications,onSignOut}:{state:UserSavingsState;user:User;onProfile:()=>void;onMenu:(title:string)=>void;onNotifications:()=>void;onSignOut:()=>void}) {
   const menus = [
     { icon: Bookmark, title: "저장한 적금", desc: `관심 상품 ${state.saved_product_ids.length}개` },
     { icon: FileText, title: "내 가입 조건", desc: "소득·재직 정보 관리" },
@@ -416,10 +418,10 @@ function MyPage({state,onProfile,onMenu,onNotifications}:{state:UserSavingsState
     <>
       <Header eyebrow="나의 저축 설정" title="마이" onNotifications={onNotifications} />
       <section className="sp-profile">
-        <div className="sp-avatar">{state.profile.name.trim().slice(0,1)||"나"}</div>
+        <div className="sp-avatar">{user.user_metadata.avatar_url ? <img src={user.user_metadata.avatar_url} alt="" style={{width:"100%",height:"100%",borderRadius:"inherit",objectFit:"cover"}} /> : state.profile.name.trim().slice(0,1)||"나"}</div>
         <div>
-          <strong>{state.profile.name}</strong>
-          <span>안정형 저축가 · Lv.3</span>
+          <strong>{state.profile.name || user.user_metadata.full_name || "Google 사용자"}</strong>
+          <span>{user.email}</span>
         </div>
         <button onClick={onProfile}>프로필 수정</button>
       </section>
@@ -446,6 +448,11 @@ function MyPage({state,onProfile,onMenu,onNotifications}:{state:UserSavingsState
             <ChevronRight size={18} />
           </button>
         ))}
+        <button onClick={onSignOut}>
+          <i><LogOut size={19} /></i>
+          <div><strong>로그아웃</strong><span>현재 Google 계정에서 로그아웃</span></div>
+          <ChevronRight size={18} />
+        </button>
       </div>
       <p className="sp-version">
         자산 정보는 입력한 납입 기록을 기준으로 계산돼요.
@@ -467,7 +474,7 @@ function TerminationPreview({state,product,onClose,onConfirm}:{state:UserSavings
   return <div className="sp-modal-backdrop" onClick={onClose}><section className="sp-modal sp-termination" role="dialog" aria-modal="true" aria-labelledby="termination-title" onClick={e=>e.stopPropagation()}><button className="sp-modal-close" onClick={onClose} aria-label="닫기"><X size={20}/></button><small>해지 전 영향 확인</small><h2 id="termination-title">{product.product_name}</h2><div className="sp-impact-compare"><div><span>목표 예상 기간</span><b>{Math.floor(beforeMonths/12)}년 {beforeMonths%12}개월</b><ChevronRight size={16}/><strong>{afterMonths===null?"계산 불가":`${Math.floor(afterMonths/12)}년 ${afterMonths%12}개월`}</strong><em>{afterMonths===null?"월 저축액을 다시 설정해야 해요":`약 ${Math.max(0,afterMonths-beforeMonths)}개월 늦어져요`}</em></div><div><span>예상 세후 이자</span><b>{Math.round(totalInterest/10000).toLocaleString()}만 원</b><ChevronRight size={16}/><strong>{Math.round((totalInterest-lostInterest)/10000).toLocaleString()}만 원</strong><em>{Math.round(lostInterest/10000).toLocaleString()}만 원 감소 예상</em></div></div><p className="sp-impact-note">지금까지 납입한 원금 {principal.toLocaleString()}원은 목표 기여도에 남고, 앞으로의 납입과 만기 이자만 전망에서 제외돼요.</p><label>실제 중도해지 수령액<input inputMode="numeric" value={payout} onChange={e=>setPayout(e.target.value.replace(/[^0-9]/g,""))}/><span>은행에서 안내받은 세후 수령액으로 수정할 수 있어요.</span></label><label>해지 사유<select value={reason} onChange={e=>setReason(e.target.value)}><option>자금이 필요해서</option><option>금리가 더 좋은 상품으로 이동</option><option>월 납입이 부담돼서</option><option>기타</option></select></label><button className="sp-danger-button" disabled={saving||!payout} onClick={submit}>{saving?"반영 중...":"중도해지로 반영"}</button><button className="sp-modal-secondary" onClick={onClose}>계속 유지하기</button></section></div>
 }
 
-export default function SavingsPrototype() {
+export default function SavingsPrototype({user,onSignOut}:{user:User;onSignOut:()=>void}) {
   const [tab, setTab] = useState<Tab>("home");
   const [items, setItems] = useState(products);
   const [loading, setLoading] = useState(true);
@@ -485,7 +492,7 @@ export default function SavingsPrototype() {
   const [recordsOpen,setRecordsOpen]=useState(false);
   const [terminationProduct,setTerminationProduct]=useState<UserSavingsState["enrolled_products"][number]|null>(null);
   const [recordDrafts,setRecordDrafts]=useState<Record<string,{product_name:string;amount:string;contributed_at:string}>>({});
-  const clientId="demo-device";
+  const clientId=user.id;
   const reloadState=()=>fetchUserSavingsState(clientId).then(setUserState).finally(()=>setStateLoading(false));
   useEffect(() => {
     fetchSavingsProducts()
@@ -570,7 +577,7 @@ export default function SavingsPrototype() {
         ) : tab === "benefits" ? (
           <BenefitsPage onNotifications={showNotifications} onOpen={title=>setNotice(`${title}\n\n지원 대상과 신청 기간을 확인한 뒤 해당 기관 홈페이지에서 신청할 수 있어요.`)} />
         ) : (
-          <MyPage state={userState} onProfile={()=>setReplanning(true)} onMenu={openMenu} onNotifications={showNotifications} />
+          <MyPage state={userState} user={user} onProfile={()=>setReplanning(true)} onMenu={openMenu} onNotifications={showNotifications} onSignOut={onSignOut} />
         )}
       </main>
       <nav>

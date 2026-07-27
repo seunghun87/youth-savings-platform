@@ -25,7 +25,14 @@ if (!process.env.CORS_ORIGIN) {
   console.warn('[경고] CORS_ORIGIN이 설정되지 않아 모든 출처의 요청을 허용합니다');
 }
 app.use(cors(corsOptions));
-app.use(express.json());
+app.disable('x-powered-by');
+app.use((req, res, next) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('Referrer-Policy', 'no-referrer');
+  res.setHeader('X-Frame-Options', 'DENY');
+  next();
+});
+app.use(express.json({ limit: '100kb' }));
 
 app.get('/health', (req, res) => res.json({ status: 'ok', timestamp: new Date().toISOString() }));
 app.use('/api/recommend', recommendRouter);
@@ -34,6 +41,7 @@ app.use('/api/user-state', userStateRouter);
 app.use('/api/youth-policy', youthPolicyRouter);
 app.use('/api/allocate', allocateRouter);
 
+app.use((req, res) => res.status(404).json({ error: '요청한 경로를 찾을 수 없습니다' }));
 app.use(errorHandler);
 
 app.listen(PORT, () => {
