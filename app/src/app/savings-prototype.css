@@ -32,3 +32,17 @@
 .sp-split-note{margin:13px 0 0;padding:10px;border-radius:10px;background:#fffbf0;color:#9b761f;font-size:10px;line-height:1.5}
 .sp-split-note b{color:#5d4b20}
 .sp-split-caption{margin:10px 0 0;color:#a3aba5;font-size:9px;line-height:1.5}
+
+/* 그 외의 적금 (가입 조건이 있어 추천에서 제외한 상품) */
+.sp-other{margin-top:26px;border:1px solid var(--spline);border-radius:16px;background:#fff;overflow:hidden}
+.sp-other-head{display:flex;width:100%;align-items:center;justify-content:space-between;gap:12px;padding:15px 16px;border:0;background:none;text-align:left}
+.sp-other-head b{display:block;font-size:13px;color:var(--sptxt)}
+.sp-other-head span{display:block;margin-top:3px;color:var(--spmuted);font-size:10px}
+.sp-other-head svg{flex:none;color:#9ba39d;transition:transform .18s}
+.sp-other-head svg.open{transform:rotate(90deg)}
+.sp-other-list{margin:0;padding:0 16px 6px;list-style:none}
+.sp-other-list li{padding:13px 0;border-top:1px solid #edf0ed}
+.sp-other-list li>div{display:flex;align-items:baseline;justify-content:space-between;gap:10px}
+.sp-other-list b{font-size:12px}
+.sp-other-list span{flex:none;color:var(--spmuted);font-size:10px}
+.sp-other-list p{margin:6px 0 0;color:#8b938d;font-size:10px;line-height:1.5}

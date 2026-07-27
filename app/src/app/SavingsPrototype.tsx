@@ -68,6 +68,8 @@ type ProductView = {
   minMonthly:number;
   maxMonthly:number|null;
   installmentStep:number|null;
+  /** 청년 개인이 가입할 수 없는 상품일 때 그 조건(가입대상 원문). 가입 가능하면 null */
+  restriction?:string|null;
   recommendation?: RecommendResult;
 };
 const products:ProductView[] = [
@@ -320,11 +322,13 @@ function FindPage({
   loading,
   savedIds,
   state,
+  restricted,
   onProduct,
   onSave,
   onNotifications,
 }: {
   items: ProductView[];
+  restricted: ProductView[];
   loading: boolean;
   savedIds:string[];
   state:UserSavingsState;
@@ -333,6 +337,7 @@ function FindPage({
   onNotifications:()=>void;
 }) {
   const [q, setQ] = useState("");
+  const [showRestricted,setShowRestricted]=useState(false);
   const [mode,setMode]=useState<"all"|"policy"|"market"|"high"|"short">("all");
   const normalizedQuery=q.trim().toLocaleLowerCase("ko-KR");
   const shown = items.filter((p) => `${p.name} ${p.org}`.toLocaleLowerCase("ko-KR").includes(normalizedQuery)).filter(p=>mode==="policy"?p.type==="정책":mode==="market"?p.type==="시중":mode==="short"?p.minPeriod<=12:true).sort((a,b)=>mode==="short"?a.minPeriod-b.minPeriod:mode==="high"?b.rate-a.rate:0);
@@ -368,6 +373,32 @@ function FindPage({
         ))}
         {!loading&&shown.length===0&&<div className="sp-empty-results"><Search size={24}/><b>조건에 맞는 적금이 없어요</b><span>검색어를 줄이거나 다른 필터를 선택해보세요.</span><button onClick={()=>{setQ("");setMode("all")}}>검색 초기화</button></div>}
       </div>
+
+      {/* 자녀·반려동물 등 별도 조건이 붙어 추천 대상에서 뺀 상품들. 조건과 함께 소개만 한다 */}
+      {!loading && restricted.length > 0 && (
+        <section className="sp-other">
+          <button className="sp-other-head" onClick={()=>setShowRestricted(v=>!v)} aria-expanded={showRestricted}>
+            <div>
+              <b>그 외의 적금 {restricted.length}개</b>
+              <span>가입 조건이 따로 있어 추천에서 제외했어요</span>
+            </div>
+            <ChevronRight size={18} className={showRestricted?"open":""} />
+          </button>
+          {showRestricted && (
+            <ul className="sp-other-list">
+              {restricted.map(p=>(
+                <li key={p.id}>
+                  <div>
+                    <b>{p.name}</b>
+                    <span>{p.org} · {p.amount}</span>
+                  </div>
+                  <p>{p.restriction}</p>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+      )}
     </>
   );
 }
@@ -602,6 +633,8 @@ function TerminationPreview({state,product,onClose,onConfirm}:{state:UserSavings
 export default function SavingsPrototype({user,onSignOut}:{user:User;onSignOut:()=>void}) {
   const [tab, setTab] = useState<Tab>("home");
   const [items, setItems] = useState(products);
+  // 청년이 가입할 수 없는 조건이 붙은 상품. "그 외의 적금" 코너에 따로 소개한다
+  const [restrictedItems, setRestrictedItems] = useState<ProductView[]>([]);
   const [loading, setLoading] = useState(true);
   const [recommendations,setRecommendations]=useState<RecommendResult[]>([]);
   const [userState,setUserState]=useState<UserSavingsState|null>(null);
@@ -622,30 +655,33 @@ export default function SavingsPrototype({user,onSignOut}:{user:User;onSignOut:(
   // 여기서는 unhandled rejection만 막고 로딩 상태를 푼다.
   const reloadState=()=>fetchUserSavingsState(clientId).then(setUserState).catch(()=>undefined).finally(()=>setStateLoading(false));
   useEffect(() => {
-    fetchSavingsProducts()
+    // 가입 조건이 있는 상품까지 한 번에 받아 화면에서 나눈다.
+    // 판정은 백엔드가 youth_joinable로 내려주므로 규칙을 여기서 다시 구현하지 않는다.
+    fetchSavingsProducts({ includeRestricted: true })
       .then((data) => {
-        if (data?.length)
-          setItems(
-            data.map((p) => ({
-              id:p.id,
-              name: p.name,
-              org: p.bank,
-              amount: `연 ${p.rate.toFixed(2)}%`,
-              desc: `${p.min_period}~${p.max_period}개월 · 월 한도 ${p.monthly_limit ?? "제한 없음"}${p.monthly_limit ? "만 원" : ""}`,
-              fit:
-                p.product_type === "정책" ? "청년 정책 적금" : "시중은행 적금",
-              tag: p.product_type,
-              type:p.product_type,
-              rate:p.rate,
-              minPeriod:p.min_period,
-              maxPeriod:p.max_period,
-              contributionType:p.contribution_type||"flexible",
-              paymentFrequency:p.payment_frequency||"monthly",
-              minMonthly:Number(p.min_monthly_amount??1)*10000,
-              maxMonthly:p.monthly_limit==null?null:Number(p.monthly_limit)*10000,
-              installmentStep:p.installment_step_amount==null?null:Number(p.installment_step_amount)*10000,
-            })),
-          );
+        if (!data?.length) return;
+        const all = data.map((p) => ({
+          id:p.id,
+          name: p.name,
+          org: p.bank,
+          amount: `연 ${p.rate.toFixed(2)}%`,
+          desc: `${p.min_period}~${p.max_period}개월 · 월 한도 ${p.monthly_limit ?? "제한 없음"}${p.monthly_limit ? "만 원" : ""}`,
+          fit:
+            p.product_type === "정책" ? "청년 정책 적금" : "시중은행 적금",
+          tag: p.product_type,
+          type:p.product_type,
+          rate:p.rate,
+          minPeriod:p.min_period,
+          maxPeriod:p.max_period,
+          contributionType:p.contribution_type||"flexible",
+          paymentFrequency:p.payment_frequency||"monthly",
+          minMonthly:Number(p.min_monthly_amount??1)*10000,
+          maxMonthly:p.monthly_limit==null?null:Number(p.monthly_limit)*10000,
+          installmentStep:p.installment_step_amount==null?null:Number(p.installment_step_amount)*10000,
+          restriction:p.youth_joinable?null:(p.join_member||"별도 가입 조건이 있어요"),
+        }));
+        setItems(all.filter(p=>!p.restriction));
+        setRestrictedItems(all.filter(p=>p.restriction));
       })
       .finally(() => setLoading(false));
   }, []);
@@ -709,7 +745,7 @@ export default function SavingsPrototype({user,onSignOut}:{user:User;onSignOut:(
         {tab === "home" ? (
           <HomePage state={userState} onRecord={openContribution} onQuickPay={quickPay} onNotifications={showNotifications} onShowAll={()=>setTab("find")} onProduct={setSelectedProduct} onBenefits={()=>setTab("benefits")} />
         ) : tab === "find" ? (
-          <FindPage items={rankedItems} loading={loading} savedIds={userState.saved_product_ids} state={userState} onProduct={setSelectedProduct} onSave={toggleSaved} onNotifications={showNotifications} />
+          <FindPage items={rankedItems} restricted={restrictedItems} loading={loading} savedIds={userState.saved_product_ids} state={userState} onProduct={setSelectedProduct} onSave={toggleSaved} onNotifications={showNotifications} />
         ) : tab === "plan" ? (
           <SavingsPlanV2Prototype clientId={clientId} live embedded initialState={userState} onChanged={reloadState} onRecord={openContribution} />
         ) : tab === "benefits" ? (

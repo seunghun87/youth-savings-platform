@@ -115,6 +115,8 @@ export interface DbSavingsProduct {
   payment_frequency: "monthly" | "weekly" | "daily";
   installment_step_amount: number | null;
   source: "manual" | "finlife";
+  /** 청년 개인이 가입할 수 있는지에 대한 백엔드 판정 결과 */
+  youth_joinable: boolean;
   /** 가입제한 1=제한없음 2=서민전용 3=일부제한. 정책 상품은 null */
   join_deny: number | null;
   /** 가입대상 원문 (예: "반려동물을 등록한 개인") */

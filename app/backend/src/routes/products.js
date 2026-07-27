@@ -45,8 +45,9 @@ router.get('/', publicReadLimiter, async (req, res, next) => {
         payment_frequency: p.payment_frequency || 'monthly',
         installment_step_amount: p.installment_step_amount,
         source: p.source,
-        // 가입 제한 정보. include_restricted로 받아온 상품을 호출부가 구분하고
-        // "어떤 조건이 붙는지"를 사용자에게 보여줄 수 있도록 함께 내려보낸다.
+        // 가입 조건 정보. 판정 결과(youth_joinable)를 함께 내려보내 호출부가
+        // 규칙을 다시 구현하지 않고도 상품을 구분하고 조건을 표시할 수 있게 한다.
+        youth_joinable: isYouthJoinable(p),
         join_deny: p.join_deny ?? null,
         join_member: p.join_member ?? null,
         special_note: p.special_note ?? null,
