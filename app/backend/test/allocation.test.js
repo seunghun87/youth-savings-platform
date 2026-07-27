@@ -31,8 +31,7 @@ const supabaseStub = {
     const builder = {
       select: () => builder,
       // 서비스가 .eq(...).or(...)로 끝내므로 or에서 결과를 돌려준다
-      eq: () => builder,
-      or: () => Promise.resolve({ data: currentProducts, error: null }),
+      eq: () => Promise.resolve({ data: currentProducts, error: null }),
     };
     return builder;
   },

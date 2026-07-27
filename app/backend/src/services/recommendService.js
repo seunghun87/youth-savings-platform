@@ -6,8 +6,7 @@ const {
   meetsPeriod,
   meetsIncome,
   meetsMonthlyLimit,
-  isJoinable,
-  JOINABLE_FILTER,
+  isYouthJoinable,
 } = require('./productRules');
 
 function evaluateProduct(product, input) {
@@ -108,15 +107,14 @@ async function getRecommendations({ monthly_amount, period_months, age, personal
   const { data: products, error } = await supabase
     .from('savings_product')
     .select('*')
-    .eq('available_for_signup', true)
-    .or(JOINABLE_FILTER);
+    .eq('available_for_signup', true);
 
   if (error) throw error;
 
   const input = { monthly_amount, period_months, age, personal_income, is_homeowner, income_reported };
   const candidates = products
-    // 가입 제한 상품 제외. DB에서 이미 걸렀지만, 조회 조건이 바뀌어도 규칙이 유지되도록 한 번 더 본다
-    .filter(isJoinable)
+    // 청년이 가입할 수 없는 상품(자녀·반려동물·미성년 대상) 제외
+    .filter(isYouthJoinable)
     .map(p => ({
       product: p,
       evaluation: evaluateProduct(p, input),

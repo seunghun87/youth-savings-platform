@@ -54,10 +54,38 @@ const meetsMonthlyLimit = (product, monthlyAmount) =>
 //   ② 아직 재동기화하지 않은 기존 finlife 행 — 값이 채워지기 전까지 기존 동작을 유지
 const JOIN_DENY_NONE = 1;
 
-const isJoinable = product => product.join_deny == null || Number(product.join_deny) === JOIN_DENY_NONE;
+// join_deny=3(일부제한)에는 성격이 전혀 다른 조건들이 섞여 있다.
+// "반려견을 키우는 고객"처럼 청년이 충족할 수 없는 것도 있지만,
+// "만19세~만34세 개인"(NH1934월복리적금)처럼 오히려 청년 전용인 상품도 여기 들어간다.
+// 그래서 join_deny만으로 자르면 청년 대상 적금까지 함께 사라진다.
+// 실제 가입대상 문구(join_member)를 보고 "청년 개인이 가입할 수 있는가"로 판정한다.
 
-// PostgREST .or() 필터 문자열. 위 isJoinable과 같은 조건을 DB에서 미리 걸러 응답 크기를 줄인다.
-const JOINABLE_FILTER = `join_deny.is.null,join_deny.eq.${JOIN_DENY_NONE}`;
+// 본인이 아닌 부양 대상에 걸린 조건. 청년 개인 혼자서는 충족할 수 없다.
+const DEPENDENT_CONDITION = /반려|애견|자녀|어린이|미성년|청소년|출산|임신|한부모|다자녀|유아/;
+
+// 연령 상한이 19세 미만이면 청년은 가입 대상이 아니다.
+// "39세 이하"(청년플랜적금)처럼 상한이 높은 경우와 구분해야 하므로 숫자를 실제로 비교한다.
+// "19세 미만"은 상한이 18세라는 뜻이므로 1을 빼서 판정한다.
+function hasUnderageCeiling(text) {
+  const pattern = /(\d{1,2})\s*세\s*(이하|미만)/g;
+  let match;
+  while ((match = pattern.exec(text)) !== null) {
+    const ceiling = match[2] === '미만' ? Number(match[1]) - 1 : Number(match[1]);
+    if (ceiling < 19) return true;
+  }
+  return false;
+}
+
+// 청년 개인이 가입할 수 있는 상품인가.
+//   ① join_deny가 없거나(정책 상품) 1(제한없음)이면 통과
+//   ② 제한이 있어도 가입대상 문구가 부양 대상·미성년 조건이 아니면 통과
+function isYouthJoinable(product) {
+  if (product.join_deny == null || Number(product.join_deny) === JOIN_DENY_NONE) return true;
+
+  const text = `${product.join_member ?? ''} ${product.special_note ?? ''}`;
+  if (!text.trim()) return false; // 조건이 있다고만 하고 내용이 없으면 보수적으로 제외
+  return !DEPENDENT_CONDITION.test(text) && !hasUnderageCeiling(text);
+}
 
 // 나이·기간·소득만 보는 기본 자격. 월 납입 한도는 포함하지 않는다.
 // 배분(allocate)은 한 상품의 한도를 넘는 금액을 다음 상품으로 넘기는 것이 목적이라
@@ -77,6 +105,6 @@ module.exports = {
   meetsIncome,
   meetsMonthlyLimit,
   meetsBaseEligibility,
-  isJoinable,
-  JOINABLE_FILTER,
+  isYouthJoinable,
+  hasUnderageCeiling,
 };

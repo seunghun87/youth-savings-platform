@@ -4,7 +4,7 @@ const supabase = require('../services/supabaseClient');
 const { syncProducts } = require('../services/finlifeService');
 const { syncLimiter, publicReadLimiter } = require('../middleware/rateLimiter');
 const { requireSyncSecret } = require('../middleware/requireSyncSecret');
-const { JOINABLE_FILTER } = require('../services/productRules');
+const { isYouthJoinable } = require('../services/productRules');
 
 // 상품 목록 화면용. 기간별 옵션이 있으면 그중 최고금리를, 없으면 base_rate를 대표금리로 노출한다.
 function maxRate(p) {
@@ -16,17 +16,18 @@ function maxRate(p) {
 
 router.get('/', publicReadLimiter, async (req, res, next) => {
   try {
-    // 기본은 가입 제한이 있는 상품(반려동물·자녀 전용 등)을 제외한다.
-    // ?include_restricted=true 를 주면 제한 상품도 함께 내려보내며,
-    // 호출부가 join_deny로 구분해 별도 코너에 보여줄 수 있다.
+    // 기본은 청년 개인이 가입할 수 없는 상품(자녀·반려동물·미성년 대상)을 제외한다.
+    // ?include_restricted=true 를 주면 그것들도 함께 내려보내며,
+    // 호출부가 join_member로 조건을 확인해 별도 코너에 보여줄 수 있다.
     const includeRestricted = req.query.include_restricted === 'true';
-    let query = supabase.from('savings_product').select('*').eq('available_for_signup', true);
-    if (!includeRestricted) query = query.or(JOINABLE_FILTER);
-
-    const { data, error } = await query;
+    const { data, error } = await supabase
+      .from('savings_product')
+      .select('*')
+      .eq('available_for_signup', true);
     if (error) throw error;
 
     const products = data
+      .filter(p => includeRestricted || isYouthJoinable(p))
       .map(p => ({
         id: p.id,
         name: p.name,
