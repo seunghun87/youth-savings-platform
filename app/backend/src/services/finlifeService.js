@@ -1,11 +1,21 @@
 const supabase = require('./supabaseClient');
 
 const FINLIFE_BASE_URL = 'https://finlife.fss.or.kr/finlifeapi';
+const PAGE_DELAY_MS = 150;
 
-async function fetchPage(apiKey, topFinGrpNo, pageNo) {
+const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+
+async function fetchPage(apiKey, topFinGrpNo, pageNo, attempt = 1) {
   const url = `${FINLIFE_BASE_URL}/savingProductsSearch.json?auth=${apiKey}&topFinGrpNo=${topFinGrpNo}&pageNo=${pageNo}`;
   const res = await fetch(url);
-  if (!res.ok) throw new Error(`finlife API 오류: ${res.status}`);
+  if (!res.ok) {
+    // 과다 요청 시 일시적으로 5xx를 던지는 경우가 있어 1회 재시도 (온통청년 연동과 동일 전략)
+    if (attempt < 2) {
+      await sleep(500);
+      return fetchPage(apiKey, topFinGrpNo, pageNo, attempt + 1);
+    }
+    throw new Error(`finlife API 오류: ${res.status} (page ${pageNo})`);
+  }
   const json = await res.json();
   if (!json.result) throw new Error('finlife 응답 형식 오류: result 없음');
   if (json.result.err_cd !== '000') throw new Error(`finlife 에러: ${json.result.err_msg}`);
@@ -19,11 +29,14 @@ async function fetchAllProducts(apiKey) {
   const optionMap = {}; // fin_co_no+fin_prdt_cd → optionList 항목 배열
 
   for (const grpNo of groups) {
+    // 전 페이지를 동시에 요청하면 과다요청으로 5xx가 떨어지므로,
+    // 순차 요청 + 페이지 사이 짧은 대기로 처리한다 (온통청년 연동과 동일)
     const first = await fetchPage(apiKey, grpNo, 1);
-    const restPageNos = [];
-    for (let p = 2; p <= first.max_page_no; p++) restPageNos.push(p);
-    const rest = await Promise.all(restPageNos.map(p => fetchPage(apiKey, grpNo, p)));
-    const pages = [first, ...rest];
+    const pages = [first];
+    for (let p = 2; p <= first.max_page_no; p++) {
+      await sleep(PAGE_DELAY_MS);
+      pages.push(await fetchPage(apiKey, grpNo, p));
+    }
 
     for (const page of pages) {
       for (const item of page.baseList || []) {

@@ -493,7 +493,9 @@ export default function SavingsPrototype({user,onSignOut}:{user:User;onSignOut:(
   const [terminationProduct,setTerminationProduct]=useState<UserSavingsState["enrolled_products"][number]|null>(null);
   const [recordDrafts,setRecordDrafts]=useState<Record<string,{product_name:string;amount:string;contributed_at:string}>>({});
   const clientId=user.id;
-  const reloadState=()=>fetchUserSavingsState(clientId).then(setUserState).finally(()=>setStateLoading(false));
+  // 세션 만료(AuthExpiredError)면 api 계층이 이미 로그아웃 처리해 AuthGate가 로그인 화면을 띄운다.
+  // 여기서는 unhandled rejection만 막고 로딩 상태를 푼다.
+  const reloadState=()=>fetchUserSavingsState(clientId).then(setUserState).catch(()=>undefined).finally(()=>setStateLoading(false));
   useEffect(() => {
     fetchSavingsProducts()
       .then((data) => {
@@ -573,7 +575,7 @@ export default function SavingsPrototype({user,onSignOut}:{user:User;onSignOut:(
         ) : tab === "find" ? (
           <FindPage items={rankedItems} loading={loading} savedIds={userState.saved_product_ids} onProduct={setSelectedProduct} onSave={toggleSaved} onNotifications={showNotifications} />
         ) : tab === "plan" ? (
-          <SavingsPlanV2Prototype live embedded initialState={userState} onChanged={reloadState} onRecord={openContribution} />
+          <SavingsPlanV2Prototype clientId={clientId} live embedded initialState={userState} onChanged={reloadState} onRecord={openContribution} />
         ) : tab === "benefits" ? (
           <BenefitsPage onNotifications={showNotifications} onOpen={title=>setNotice(`${title}\n\n지원 대상과 신청 기간을 확인한 뒤 해당 기관 홈페이지에서 신청할 수 있어요.`)} />
         ) : (

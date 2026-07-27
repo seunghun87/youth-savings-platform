@@ -16,13 +16,28 @@ const API_BASE_URL = (
 const LOCAL_STATE_KEY = "moa-savings-state";
 const localStateKey = (clientId:string) => `${LOCAL_STATE_KEY}:${clientId}`;
 
+export class AuthExpiredError extends Error {
+  constructor() {
+    super("로그인 세션이 만료됐어요. 다시 로그인해주세요.");
+    this.name = "AuthExpiredError";
+  }
+}
+
 async function authFetch(input: RequestInfo | URL, init: RequestInit = {}) {
   const { data } = await supabase.auth.getSession();
   const headers = new Headers(init.headers);
   if (data.session?.access_token) {
     headers.set("Authorization", `Bearer ${data.session.access_token}`);
   }
-  return fetch(input, { ...init, headers });
+  const res = await fetch(input, { ...init, headers });
+
+  // 401/403을 로컬 폴백으로 흡수하면 사용자에게는 "예전 데이터가 그대로 보이는" 상태가 된다.
+  // 세션을 정리해 AuthGate가 로그인 화면을 다시 띄우도록 하고, 호출부에는 명시적으로 알린다.
+  if (res.status === 401 || res.status === 403) {
+    await supabase.auth.signOut().catch(() => undefined);
+    throw new AuthExpiredError();
+  }
+  return res;
 }
 
 function createLocalState(clientId:string): UserSavingsState {
@@ -107,7 +122,15 @@ export interface UserSavingsState {
 }
 
 export async function fetchUserSavingsState(clientId:string): Promise<UserSavingsState|null> {
-  try { const res=await authFetch(`${API_BASE_URL}/api/user-state/${clientId}`); return res.ok?await res.json():readLocalState(clientId); } catch { return readLocalState(clientId); }
+  try {
+    const res = await authFetch(`${API_BASE_URL}/api/user-state/${clientId}`);
+    return res.ok ? await res.json() : readLocalState(clientId);
+  } catch (e) {
+    // 세션 만료는 로컬 데이터로 가리지 않고 그대로 올린다 (AuthGate가 로그인 화면으로 되돌림)
+    if (e instanceof AuthExpiredError) throw e;
+    // 그 외(백엔드 미기동, 오프라인 등)는 기존대로 로컬 상태로 폴백
+    return readLocalState(clientId);
+  }
 }
 
 export async function addSavingsContribution(clientId:string, productName:string, amount:number, contributedAt?:string) {

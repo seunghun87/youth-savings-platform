@@ -6,17 +6,36 @@ services:
     region: singapore
     branch: main
     rootDir: app/backend
-    buildCommand: npm install
+    buildCommand: npm ci
     startCommand: npm start
     healthCheckPath: /health
     envVars:
+      # ── Supabase (대시보드에서 직접 입력) ──
       - key: SUPABASE_URL
         sync: false
+      # service_role 키는 RLS를 우회하는 전체 권한 키다. 절대 프론트엔드에 넣지 말 것
       - key: SUPABASE_SERVICE_ROLE_KEY
         sync: false
+
+      # ── 외부 Open API 인증키 (대시보드에서 직접 입력) ──
       - key: FINLIFE_API_KEY
         sync: false
       - key: YOUTH_POLICY_API_KEY
         sync: false
+
+      # ── 필수 보안 설정 ──
+      # 허용할 프론트엔드 출처. 미설정 시 모든 출처를 허용하므로 반드시 채울 것.
+      # 예) https://your-app.vercel.app (여러 개면 콤마로 구분, 슬래시 없이)
+      - key: CORS_ORIGIN
+        sync: false
+      # /api/*/sync 호출에 필요한 x-sync-secret 값. Render가 자동 생성한다.
+      # 미설정 시 동기화 API가 503으로 막혀 상품·정책 데이터를 갱신할 수 없다.
+      - key: SYNC_SECRET
+        generateValue: true
+      # Render는 리버스 프록시 뒤에서 앱을 실행한다. 이 값이 없으면 rate limit이
+      # 프록시 IP 하나로 묶여 전체 사용자가 같은 요청 한도를 공유하게 된다.
+      - key: TRUST_PROXY
+        value: 1
+
       - key: PORT
         value: 3000

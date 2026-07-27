@@ -27,6 +27,10 @@ emulator_screenshot.png
 /android/
 /backend/
 
+# Python (docs/ 보고서 생성 스크립트)
+__pycache__/
+*.py[cod]
+
 # OS / editor
 .DS_Store
 

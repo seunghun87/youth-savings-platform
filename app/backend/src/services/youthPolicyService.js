@@ -8,6 +8,12 @@ const SUPABASE_PAGE_SIZE = 1000; // PostgREST 기본 응답 행 제한. .range()
 
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 
+// 목록 조회 캐시. youth_policy는 sync를 돌릴 때만 바뀌는데(하루 1회 수준),
+// 캐시가 없으면 /api/youth-policy 요청마다 수천 행을 1000행씩 나눠 전량 조회하게 된다.
+const POLICY_CACHE_TTL_MS = Number(process.env.YOUTH_POLICY_CACHE_TTL_MS) || 5 * 60 * 1000;
+let policyCache = { rows: null, expiresAt: 0 };
+let policyCacheLoading = null; // 콜드 상태에서 동시 요청이 들어와도 전량 조회는 한 번만 수행
+
 // Supabase(PostgREST)는 요청당 최대 1000행만 반환하므로,
 // 1000행 이상인 youth_policy를 select('*')로 그냥 조회하면 나머지가 조용히 누락된다
 async function fetchAllRows(buildQuery) {
@@ -149,6 +155,7 @@ async function syncYouthPolicies() {
     if (delErr) throw delErr;
   }
 
+  invalidatePolicyCache();
   return policies.length;
 }
 
@@ -204,15 +211,35 @@ function judgePolicy(policy, age, personalIncome, incomeBracket) {
   return { status: hasUnknown ? '확인 필요' : '충족', reason: null };
 }
 
-async function listYouthPolicies({ age, keyword, personalIncome, incomeBracket } = {}) {
-  const data = await fetchAllRows((from, to) =>
+function invalidatePolicyCache() {
+  policyCache = { rows: null, expiresAt: 0 };
+}
+
+async function getCachedPolicies() {
+  if (policyCache.rows && policyCache.expiresAt > Date.now()) return policyCache.rows;
+  if (policyCacheLoading) return policyCacheLoading;
+
+  policyCacheLoading = fetchAllRows((from, to) =>
     supabase
       .from('youth_policy')
       .select('*')
       .order('created_at', { ascending: false })
       .order('id') // created_at 동률(일괄 upsert)이 많아 range 페이징 안정성을 위한 2차 정렬
       .range(from, to)
-  );
+  )
+    .then(rows => {
+      policyCache = { rows, expiresAt: Date.now() + POLICY_CACHE_TTL_MS };
+      return rows;
+    })
+    .finally(() => {
+      policyCacheLoading = null;
+    });
+
+  return policyCacheLoading;
+}
+
+async function listYouthPolicies({ age, keyword, personalIncome, incomeBracket } = {}) {
+  const data = await getCachedPolicies();
 
   // 자격 미달(미충족) 정책도 걸러내지 않고 사유와 함께 그대로 포함한다. 검색어만 필터링.
   const matched = data.filter(p =>
@@ -228,4 +255,4 @@ async function listYouthPolicies({ age, keyword, personalIncome, incomeBracket }
   });
 }
 
-module.exports = { syncYouthPolicies, listYouthPolicies };
+module.exports = { syncYouthPolicies, listYouthPolicies, invalidatePolicyCache };

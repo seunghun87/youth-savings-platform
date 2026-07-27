@@ -71,7 +71,10 @@ const demoAccounts = [
 ];
 const money = (n: number) => `${Math.round(n / 10000).toLocaleString()}만 원`;
 
-export default function SavingsPlanV2Prototype({live=false,embedded=false,initialState,onChanged,onRecord}:{live?:boolean;embedded?:boolean;initialState?:UserSavingsState;onChanged?:()=>Promise<void>|void;onRecord?:()=>void}) {
+// live 모드에서는 로그인 사용자의 ID(clientId)로 읽고 쓴다. 호출부가 반드시 넘겨줘야 하며,
+// 넘기지 않으면 저장 동작을 막는다(예전에는 "demo-device"가 하드코딩돼 있어 로그인 사용자가
+// 아닌 다른 client_id로 요청이 나갔고, 백엔드 인증이 켜진 뒤로는 403이 났다).
+export default function SavingsPlanV2Prototype({clientId,live=false,embedded=false,initialState,onChanged,onRecord}:{clientId?:string;live?:boolean;embedded?:boolean;initialState?:UserSavingsState;onChanged?:()=>Promise<void>|void;onRecord?:()=>void}) {
   const [view, setView] = useState<View>("all"),
     [scenario, setScenario] = useState<Scenario>("keep"),
     [addOpen, setAddOpen] = useState(false),
@@ -81,9 +84,8 @@ export default function SavingsPlanV2Prototype({live=false,embedded=false,initia
     [saving,setSaving]=useState(false),
     [userState,setUserState]=useState<UserSavingsState|null>(initialState??null),
     [loading,setLoading]=useState(live&&!initialState);
-  const clientId="demo-device";
-  const reload=async()=>{const next=await fetchUserSavingsState(clientId);setUserState(next);await onChanged?.();setLoading(false)};
-  useEffect(()=>{if(initialState){setUserState(initialState);setLoading(false)}else if(live)reload()},[live,initialState]);
+  const reload=async()=>{if(!clientId){setLoading(false);return}const next=await fetchUserSavingsState(clientId);setUserState(next);await onChanged?.();setLoading(false)};
+  useEffect(()=>{if(initialState){setUserState(initialState);setLoading(false)}else if(live)reload().catch(()=>setLoading(false))},[live,initialState]);
   const currentMonth=new Date().toISOString().slice(0,7);
   const colors=["#2f8f62","#efaa4f","#6398dc","#a77bd6"];
   const accounts=live&&userState?userState.enrolled_products.filter(x=>x.status!=="중도해지").map((p,index)=>{
@@ -112,8 +114,8 @@ export default function SavingsPlanV2Prototype({live=false,embedded=false,initia
   if(loading)return <div className="pv2-shell"><main><section className="pv2-loading">저축 플랜을 불러오는 중...</section></main></div>;
   if(live&&!userState?.profile.onboarding_completed)return <PlanPrototype clientId={clientId} onSaved={reload}/>;
   const monthLabel=new Intl.DateTimeFormat("ko-KR",{month:"long"}).format(new Date()),monthEnd=new Date(new Date().getFullYear(),new Date().getMonth()+1,0).getDate();
-  const saveAccount=async()=>{const monthly=Number(addDraft.monthly),balance=Number(addDraft.balance);if(!addDraft.name.trim()||!Number.isInteger(monthly)||monthly<=0||!Number.isInteger(balance)||balance<0||!addDraft.maturity)return;setSaving(true);try{const productId=`manual-${Date.now()}`;await addEnrolledProduct(clientId,{product_id:productId,product_name:addDraft.name.trim(),bank:"직접 입력",status:"가입완료",started_at:new Date().toISOString().slice(0,10),matures_at:addDraft.maturity,monthly_amount:monthly,opening_balance:balance,contribution_type:"flexible",payment_frequency:"monthly",min_amount:10000});if(balance>0&&userState)await updateSavingsPlan(clientId,{target_amount:Number(userState.plan.target_amount),monthly_target:Number(userState.plan.monthly_target),current_amount:Number(userState.plan.current_amount)+balance});await reload();setAddOpen(false);setAddDraft({name:"",balance:"",monthly:"",maturity:""})}finally{setSaving(false)}};
-  const terminateAccount=async()=>{if(!cancelProductId||!live)return;setSaving(true);try{await updateEnrolledProduct(clientId,cancelProductId,{status:"중도해지",ended_at:new Date().toISOString().slice(0,10),termination_reason:"사용자 직접 해지",termination_payout:managedAccount.balance});await reload();setCancelProductId(null)}finally{setSaving(false)}};
+  const saveAccount=async()=>{const monthly=Number(addDraft.monthly),balance=Number(addDraft.balance);if(!clientId||!addDraft.name.trim()||!Number.isInteger(monthly)||monthly<=0||!Number.isInteger(balance)||balance<0||!addDraft.maturity)return;setSaving(true);try{const productId=`manual-${Date.now()}`;await addEnrolledProduct(clientId,{product_id:productId,product_name:addDraft.name.trim(),bank:"직접 입력",status:"가입완료",started_at:new Date().toISOString().slice(0,10),matures_at:addDraft.maturity,monthly_amount:monthly,opening_balance:balance,contribution_type:"flexible",payment_frequency:"monthly",min_amount:10000});if(balance>0&&userState)await updateSavingsPlan(clientId,{target_amount:Number(userState.plan.target_amount),monthly_target:Number(userState.plan.monthly_target),current_amount:Number(userState.plan.current_amount)+balance});await reload();setAddOpen(false);setAddDraft({name:"",balance:"",monthly:"",maturity:""})}finally{setSaving(false)}};
+  const terminateAccount=async()=>{if(!cancelProductId||!live||!clientId)return;setSaving(true);try{await updateEnrolledProduct(clientId,cancelProductId,{status:"중도해지",ended_at:new Date().toISOString().slice(0,10),termination_reason:"사용자 직접 해지",termination_payout:managedAccount.balance});await reload();setCancelProductId(null)}finally{setSaving(false)}};
   return (
     <div className={`pv2-shell ${view === "all" ? "all" : ""} ${embedded?"embedded":""}`}>
       {!embedded&&<header className="pv2-top">

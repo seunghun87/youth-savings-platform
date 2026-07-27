@@ -964,26 +964,9 @@ const DEFAULT_PLAN: PlanInfo = {
   interestCategories:["savings","support"],
 };
 
-function AppContent({ session }: { session: Session }) {
-  const previewMode = new URLSearchParams(window.location.search).get("preview");
-  if (previewMode === "plan") {
-    return <PlanPrototype />;
-  }
-  if (previewMode === "plan-v2") {
-    return <SavingsPlanV2Prototype />;
-  }
-  if (previewMode === "onboarding") {
-    return <PlanPrototype clientId={session.user.id} onSaved={() => window.location.assign(window.location.pathname)} />;
-  }
-  if (previewMode !== "legacy" && previewMode !== "design") {
-    return <SavingsPrototype user={session.user} onSignOut={() => supabase.auth.signOut()} />;
-  }
-  if (new URLSearchParams(window.location.search).get("preview") === "design") {
-    return <DesignPreview />;
-  }
-  if (new URLSearchParams(window.location.search).get("preview") === "savings") {
-    return <SavingsPrototype user={session.user} onSignOut={() => supabase.auth.signOut()} />;
-  }
+// 레거시 화면 흐름(?preview=legacy). 훅을 사용하므로 라우팅 분기(AppContent)와 분리해 둔다.
+// 분기 뒤에 훅을 두면 preview 값에 따라 훅 호출 개수가 달라져 Rules of Hooks를 위반한다.
+function LegacyAppFlow() {
   const [screen, setScreen]       = useState<Screen>("onboarding");
   const [activeTab, setActiveTab] = useState<Tab>("home");
   const [selectedId, setSelectedId] = useState<string|null>(null);
@@ -1050,6 +1033,33 @@ function AppContent({ session }: { session: Session }) {
       </div>
     </div>
   );
+}
+
+// ?preview= 값에 따른 화면 라우팅. 훅을 쓰지 않는 순수 분기라 조건부 return이 안전하다.
+// 기본값(쿼리 없음)은 실제 서비스 화면인 SavingsPrototype.
+function AppContent({ session }: { session: Session }) {
+  const previewMode = new URLSearchParams(window.location.search).get("preview");
+  const signOut = () => supabase.auth.signOut();
+
+  switch (previewMode) {
+    case "plan":
+      return <PlanPrototype />;
+    case "plan-v2":
+      return <SavingsPlanV2Prototype clientId={session.user.id} />;
+    case "onboarding":
+      return (
+        <PlanPrototype
+          clientId={session.user.id}
+          onSaved={() => window.location.assign(window.location.pathname)}
+        />
+      );
+    case "design":
+      return <DesignPreview />;
+    case "legacy":
+      return <LegacyAppFlow />;
+    default:
+      return <SavingsPrototype user={session.user} onSignOut={signOut} />;
+  }
 }
 
 export default function App() {

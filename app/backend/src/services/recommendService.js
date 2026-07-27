@@ -1,78 +1,38 @@
 const supabase = require('./supabaseClient');
 const { calculateMaturityAmount } = require('./calculationService');
-const { listYouthPolicies } = require('./youthPolicyService');
-
-const MAX_POLICIES = 20;
-
-const STATUS_ORDER = { '충족': 0, '확인 필요': 1, '미충족': 2 };
-
-// 정책 정렬 우선순위: ① 충족 > 확인 필요 > 미충족 ② 나이 범위가 좁을수록(더 특정 대상 정책일수록) 상위 노출
-// listYouthPolicies는 이제 미충족 정책도 사유와 함께 포함하지만, 상위 20건 안에는 사실상 충족/확인필요만 들어온다
-async function getMatchingPolicies(age, personalIncome, incomeBracket) {
-  const policies = await listYouthPolicies({ age, personalIncome, incomeBracket });
-  return policies
-    .slice()
-    .sort((a, b) => {
-      if (a.status !== b.status) return STATUS_ORDER[a.status] - STATUS_ORDER[b.status];
-      const spanA = (a.max_age ?? 999) - (a.min_age ?? 0);
-      const spanB = (b.max_age ?? 999) - (b.min_age ?? 0);
-      return spanA - spanB;
-    })
-    .slice(0, MAX_POLICIES)
-    .map(({ id, ...rest }) => rest);
-}
-
-// 사용자 목표 기간에 적용할 금리 선택.
-// finlife 상품은 기간별 옵션 중 "목표 기간 이하에서 가장 높은 금리"를 사용하고,
-// 옵션이 없는 상품(manual 정책 상품)은 base_rate를 그대로 사용한다.
-// 목표 기간에 맞는 옵션이 하나도 없으면 null 반환(추천 제외).
-function pickRate(product, periodMonths) {
-  const options = Array.isArray(product.options) ? product.options : null;
-  if (!options || options.length === 0) return Number(product.base_rate);
-
-  const selectedTerm = Math.min(periodMonths, Number(product.max_period));
-  const applicable = options.filter(o => o.term <= selectedTerm);
-  if (applicable.length === 0) return null;
-  const longestTerm = Math.max(...applicable.map(o => o.term));
-  return Math.max(...applicable.filter(o => o.term === longestTerm).map(o => o.rate));
-}
-
-function pickCalculationPeriod(product, periodMonths) {
-  const options = Array.isArray(product.options) ? product.options : [];
-  if (!options.length) return Math.min(periodMonths, Number(product.max_period));
-  const applicable = options.filter(o => o.term <= Math.min(periodMonths, Number(product.max_period)));
-  return applicable.length ? Math.max(...applicable.map(o => o.term)) : null;
-}
+const {
+  pickTerm,
+  meetsAge,
+  meetsPeriod,
+  meetsIncome,
+  meetsMonthlyLimit,
+} = require('./productRules');
 
 function evaluateProduct(product, input) {
   const checks = [
     {
       key: 'age',
       label: `나이 ${product.min_age}~${product.max_age}세`,
-      met: input.age >= product.min_age && input.age <= product.max_age,
+      met: meetsAge(product, input.age),
     },
     {
       key: 'period',
       label: `목표 기간 안에서 ${product.min_period}~${product.max_period}개월 운용`,
-      met: input.period_months >= product.min_period,
+      met: meetsPeriod(product, input.period_months),
     },
     {
       key: 'income',
       label: product.income_limit
         ? `연소득 ${Number(product.income_limit).toLocaleString()}만원 이하`
         : '소득 제한 없음',
-      met:
-        product.income_limit === null ||
-        input.personal_income <= product.income_limit,
+      met: meetsIncome(product, input.personal_income),
     },
     {
       key: 'monthly',
       label: product.monthly_limit
         ? `월 납입 ${Number(product.monthly_limit).toLocaleString()}만원 이하`
         : '월 납입 한도 없음',
-      met:
-        product.monthly_limit === null ||
-        input.monthly_amount <= product.monthly_limit,
+      met: meetsMonthlyLimit(product, input.monthly_amount),
     },
   ];
 
@@ -111,10 +71,8 @@ function buildRecommendationReason(product, rate, input) {
   if (product.product_type === '정책') reasons.push('정부지원 상품');
   if (rate >= 5) reasons.push(`연 ${rate.toFixed(2)}% 수준의 높은 금리`);
   if (product.max_period === input.period_months) reasons.push('목표 기간과 정확히 일치');
-  else if (input.period_months >= product.min_period) reasons.push('목표 기간 안에 운용 가능');
-  if (product.monthly_limit === null || input.monthly_amount <= product.monthly_limit) {
-    reasons.push('희망 월 납입액 수용');
-  }
+  else if (meetsPeriod(product, input.period_months)) reasons.push('목표 기간 안에 운용 가능');
+  if (meetsMonthlyLimit(product, input.monthly_amount)) reasons.push('희망 월 납입액 수용');
   return reasons.slice(0, 3);
 }
 
@@ -157,41 +115,45 @@ async function getRecommendations({ monthly_amount, period_months, age, personal
     .map(p => ({
       product: p,
       evaluation: evaluateProduct(p, input),
-      rate: pickRate(p, period_months),
-      calculationMonths: pickCalculationPeriod(p, period_months),
+      term: pickTerm(p, period_months),
     }))
     .filter(c => c.evaluation.eligible)
-    .filter(c => c.rate !== null);
+    .filter(c => c.term !== null);
 
   candidates.sort((a, b) => {
     if (a.product.product_type !== b.product.product_type) {
       return a.product.product_type === '정책' ? -1 : 1;
     }
-    return b.rate - a.rate;
+    return b.term.rate - a.term.rate;
   });
 
-  const results = candidates.map(({ product: p, rate, evaluation, calculationMonths }, i) => {
-    const calculation = calculateMaturityAmount(monthly_amount * 10000, calculationMonths, rate);
-    const contribution = governmentContribution(p, monthly_amount * 10000, calculationMonths, personal_income);
-    return ({
-    id: p.id,
-    name: p.name,
-    bank: p.bank,
-    product_type: p.product_type,
-    base_rate: rate,
-    expected_amount: calculation.maturityAmount + contribution,
-    principal: calculation.principal,
-    aftertax_interest: calculation.aftertaxInterest,
-    government_contribution: contribution,
-    calculation_period_months: calculationMonths,
-    rank: i + 1,
-    notice: p.income_limit ? `연소득 ${p.income_limit.toLocaleString()}만원 이하 조건 있음` : null,
-    eligibility_status: 'eligible',
-    eligibility_score: evaluation.eligibilityScore,
-    checks: evaluation.checks,
-    recommendation_reasons: buildRecommendationReason(p, rate, input),
-    data_source: p.source,
-  }); });
+  const results = candidates.map(({ product: p, term, evaluation }, i) => {
+    // 금리(term.rate)와 계산 기간(term.months)은 항상 같은 옵션에서 나온다(productRules.pickTerm).
+    const calculation = calculateMaturityAmount(monthly_amount * 10000, term.months, term.rate);
+    const contribution = governmentContribution(p, monthly_amount * 10000, term.months, personal_income);
+    return {
+      id: p.id,
+      name: p.name,
+      bank: p.bank,
+      product_type: p.product_type,
+      base_rate: term.rate,
+      expected_amount: calculation.maturityAmount + contribution,
+      principal: calculation.principal,
+      aftertax_interest: calculation.aftertaxInterest,
+      government_contribution: contribution,
+      calculation_period_months: term.months,
+      rank: i + 1,
+      // income_limit이 numeric(문자열)으로 내려오는 경우가 있어 Number()로 정규화 후 포맷한다
+      notice: p.income_limit
+        ? `연소득 ${Number(p.income_limit).toLocaleString()}만원 이하 조건 있음`
+        : null,
+      eligibility_status: 'eligible',
+      eligibility_score: evaluation.eligibilityScore,
+      checks: evaluation.checks,
+      recommendation_reasons: buildRecommendationReason(p, term.rate, input),
+      data_source: p.source,
+    };
+  });
 
   await saveHistory({ monthly_amount, period_months, age, personal_income, income_bracket }, results);
 

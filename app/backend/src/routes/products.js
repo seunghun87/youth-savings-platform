@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const supabase = require('../services/supabaseClient');
 const { syncProducts } = require('../services/finlifeService');
-const { syncLimiter } = require('../middleware/rateLimiter');
+const { syncLimiter, publicReadLimiter } = require('../middleware/rateLimiter');
 const { requireSyncSecret } = require('../middleware/requireSyncSecret');
 
 // 상품 목록 화면용. 기간별 옵션이 있으면 그중 최고금리를, 없으면 base_rate를 대표금리로 노출한다.
@@ -13,7 +13,7 @@ function maxRate(p) {
   return Number(p.base_rate);
 }
 
-router.get('/', async (req, res, next) => {
+router.get('/', publicReadLimiter, async (req, res, next) => {
   try {
     const { data, error } = await supabase.from('savings_product').select('*').eq('available_for_signup', true);
     if (error) throw error;
