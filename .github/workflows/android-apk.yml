@@ -1,0 +1,68 @@
+name: Android APK
+
+# Android SDK가 깔린 PC가 없어도 APK를 받을 수 있게 하는 워크플로.
+# Actions 탭 → "Android APK" → Run workflow 로 직접 실행하면
+# 완료 후 Artifacts에서 app-debug.apk를 내려받을 수 있다.
+on:
+  workflow_dispatch:
+    inputs:
+      api_base_url:
+        description: '백엔드 주소 (비우면 저장된 VITE_API_BASE_URL 사용)'
+        required: false
+        type: string
+
+jobs:
+  apk:
+    name: 디버그 APK 빌드
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      # compileSdk 36 / build-tools 36은 러너 이미지에 없을 수 있으므로 명시적으로 설치한다
+      - name: Android SDK 구성 요소 설치
+        run: |
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" \
+            "platforms;android-36" "build-tools;36.0.0" "platform-tools"
+
+      - name: 웹 빌드
+        working-directory: app
+        env:
+          # Vite는 빌드 시점에 값을 코드에 박아 넣는다. 비어 있으면 앱이
+          # 에뮬레이터 전용 주소(10.0.2.2)를 보게 되므로 실기기에서 통신이 안 된다.
+          VITE_API_BASE_URL: ${{ inputs.api_base_url || vars.VITE_API_BASE_URL }}
+          VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL || secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ vars.VITE_SUPABASE_ANON_KEY || secrets.VITE_SUPABASE_ANON_KEY }}
+        run: |
+          if [ -z "$VITE_API_BASE_URL" ]; then
+            echo "::warning::VITE_API_BASE_URL이 비어 있습니다. 실기기에서는 백엔드에 연결되지 않습니다."
+          fi
+          npm ci
+          npm run typecheck
+          npm run build
+
+      - name: Capacitor 동기화
+        working-directory: app
+        run: npx cap sync android
+
+      - name: APK 빌드
+        working-directory: app/android
+        run: ./gradlew assembleDebug --no-daemon
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: app-debug-apk-${{ github.run_number }}
+          path: app/android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 14
