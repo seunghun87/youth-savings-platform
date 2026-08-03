@@ -32,6 +32,7 @@ import {
   addSavingsContribution,
   addEnrolledProduct,
   deleteSavingsContribution,
+  deleteUserAccount,
   fetchRecommendations,
   fetchAllocation,
   fetchSavingsProducts,
@@ -70,6 +71,7 @@ type ProductView = {
   installmentStep:number|null;
   /** 청년 개인이 가입할 수 없는 상품일 때 그 조건(가입대상 원문). 가입 가능하면 null */
   restriction?:string|null;
+  source?:"manual"|"finlife";
   recommendation?: RecommendResult;
 };
 const products:ProductView[] = [
@@ -356,6 +358,10 @@ function FindPage({
         />
       </label>
       <AllocationCard state={state} />
+      <aside className="sp-product-disclosure">
+        <ShieldCheck size={17}/>
+        <p><b>상품 성격을 구분해 확인하세요</b><span>정부지원 상품은 정책 운영기관 정보를, 시중은행 상품은 금융감독원 공시 정보를 바탕으로 표시합니다. 현재 유료 광고·제휴 상품은 없습니다.</span></p>
+      </aside>
       <div className="sp-chips">
         {filters.map(f=><button key={f.id} className={mode===f.id?"on":""} onClick={()=>setMode(f.id)}>{f.label}</button>)}
       </div>
@@ -561,7 +567,7 @@ function BenefitsPage({profile,onNotifications,onOpen}:{profile:UserSavingsState
     </>
   );
 }
-function MyPage({state,user,onProfile,onMenu,onNotifications,onSignOut}:{state:UserSavingsState;user:User;onProfile:()=>void;onMenu:(title:string)=>void;onNotifications:()=>void;onSignOut:()=>void}) {
+function MyPage({state,user,onProfile,onMenu,onNotifications,onSignOut,onDeleteAccount}:{state:UserSavingsState;user:User;onProfile:()=>void;onMenu:(title:string)=>void;onNotifications:()=>void;onSignOut:()=>void;onDeleteAccount:()=>void}) {
   const menus = [
     { icon: Bookmark, title: "저장한 적금", desc: `관심 상품 ${state.saved_product_ids.length}개` },
     { icon: FileText, title: "내 가입 조건", desc: "소득·재직 정보 관리" },
@@ -610,6 +616,11 @@ function MyPage({state,user,onProfile,onMenu,onNotifications,onSignOut}:{state:U
         <button onClick={onSignOut}>
           <i><LogOut size={19} /></i>
           <div><strong>로그아웃</strong><span>현재 Google 계정에서 로그아웃</span></div>
+          <ChevronRight size={18} />
+        </button>
+        <button className="sp-account-delete" onClick={onDeleteAccount}>
+          <i><X size={19} /></i>
+          <div><strong>회원탈퇴</strong><span>계정과 연결된 모든 자산·목표 정보를 삭제</span></div>
           <ChevronRight size={18} />
         </button>
       </div>
@@ -682,6 +693,7 @@ export default function SavingsPrototype({user,onSignOut}:{user:User;onSignOut:(
           maxMonthly:p.monthly_limit==null?null:Number(p.monthly_limit)*10000,
           installmentStep:p.installment_step_amount==null?null:Number(p.installment_step_amount)*10000,
           restriction:p.youth_joinable?null:(p.join_member||"별도 가입 조건이 있어요"),
+          source:p.source,
         }));
         setItems(all.filter(p=>!p.restriction));
         setRestrictedItems(all.filter(p=>p.restriction));
@@ -739,6 +751,7 @@ export default function SavingsPrototype({user,onSignOut}:{user:User;onSignOut:(
   const terminateProduct=async(reason:string,payout:number)=>{if(!userState||!terminationProduct)return;const principal=userState.contributions.filter(x=>x.product_name===terminationProduct.product_name).reduce((sum,x)=>sum+Number(x.amount),0);try{await updateEnrolledProduct(clientId,terminationProduct.product_id,{status:"중도해지",ended_at:new Date().toISOString().slice(0,10),termination_reason:reason,termination_payout:payout});if(payout!==principal)await updateSavingsPlan(clientId,{target_amount:Number(userState.plan.target_amount),monthly_target:Number(userState.plan.monthly_target),current_amount:Math.max(0,Number(userState.plan.current_amount)+payout-principal)});await reloadState();setTerminationProduct(null);setNotice("중도해지를 반영하고 목표 기간과 예상 이자를 다시 계산했어요.");}catch(e){setNotice(e instanceof Error?e.message:"중도해지를 반영하지 못했습니다.");}};
   const editProfile=async()=>{if(!userState)return;const name=window.prompt("이름을 입력해주세요",userState.profile.name);if(!name?.trim())return;const city=window.prompt("거주 지역을 입력해주세요",userState.profile.city);if(!city?.trim())return;try{await updateUserProfile(clientId,{name:name.trim(),age:userState.profile.age,city:city.trim(),annual_income:userState.profile.annual_income,is_homeowner:userState.profile.is_homeowner,income_reported:userState.profile.income_reported,onboarding_completed:userState.profile.onboarding_completed});await reloadState();setNotice("프로필을 수정했어요.");}catch(e){setNotice(e instanceof Error?e.message:"프로필을 수정하지 못했습니다.");}};
   const openMenu=(title:string)=>{if(title==="저장한 적금"){setTab("find");setNotice("북마크 아이콘이 채워진 상품이 저장한 적금이에요.");return;}setNotice(`${title}\n\n해당 설정은 현재 입력된 사용자 정보를 기준으로 관리됩니다.`);};
+  const removeAccount=async()=>{const confirmation=window.prompt("회원탈퇴 시 자산·납입·목표 데이터가 모두 삭제되고 복구할 수 없습니다. 계속하려면 '회원탈퇴'를 입력해주세요.");if(confirmation!=="회원탈퇴")return;try{await deleteUserAccount(clientId);await onSignOut();}catch(e){setNotice(e instanceof Error?e.message:"회원탈퇴를 처리하지 못했습니다.");}};
   if(stateLoading)return <div className="sp-shell"><main className="sp-loading" aria-busy="true" aria-label="저축 데이터 불러오는 중"><div/><section/><section/></main></div>;
   if(!userState?.profile.onboarding_completed)return <PlanPrototype clientId={clientId} onSaved={reloadState}/>;
   if(replanning)return <PlanPrototype clientId={clientId} initialState={userState} onSaved={async()=>{await reloadState();setReplanning(false);setTab("plan")}}/>;
@@ -754,7 +767,7 @@ export default function SavingsPrototype({user,onSignOut}:{user:User;onSignOut:(
         ) : tab === "benefits" ? (
           <BenefitsPage profile={userState.profile} onNotifications={showNotifications} onOpen={openPolicy} />
         ) : (
-          <MyPage state={userState} user={user} onProfile={()=>setReplanning(true)} onMenu={openMenu} onNotifications={showNotifications} onSignOut={onSignOut} />
+          <MyPage state={userState} user={user} onProfile={()=>setReplanning(true)} onMenu={openMenu} onNotifications={showNotifications} onSignOut={onSignOut} onDeleteAccount={removeAccount} />
         )}
       </main>
       <nav>

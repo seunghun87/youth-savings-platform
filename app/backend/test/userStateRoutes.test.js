@@ -9,7 +9,7 @@ const USER_ID = '11111111-2222-3333-4444-555555555555';
 // ── supabase 스텁 ────────────────────────────────────────────
 // 라우터가 호출하는 쿼리 빌더 체인을 흉내 낸다. 모든 종단 연산은 빈 성공 응답을 돌려주고,
 // 마지막으로 upsert/update에 넘어간 값을 기록해 두어 검증 결과를 확인할 수 있게 한다.
-const captured = { lastWrite: null };
+const captured = { lastWrite: null, deletedUserId: null };
 
 function queryBuilder() {
   const result = { data: {}, error: null, count: 0 };
@@ -39,6 +39,9 @@ const supabaseStub = {
       token === 'valid-token'
         ? { data: { user: { id: USER_ID } }, error: null }
         : { data: { user: null }, error: new Error('invalid') },
+    admin: {
+      deleteUser: async id => { captured.deletedUserId = id; return { data: {}, error: null }; },
+    },
   },
 };
 
@@ -90,6 +93,13 @@ test('다른 사용자의 ID에는 403을 반환한다', async () => {
   const res = await request('GET', '/api/user-state/99999999-0000-0000-0000-000000000000');
   assert.equal(res.status, 403);
   assert.match((await res.json()).error, /다른 사용자/);
+});
+
+test('회원탈퇴는 본인 앱 데이터와 Auth 계정을 함께 삭제한다', async () => {
+  captured.deletedUserId = null;
+  const res = await request('DELETE', `/api/user-state/${USER_ID}/account`);
+  assert.equal(res.status, 204);
+  assert.equal(captured.deletedUserId, USER_ID);
 });
 
 test('프로필 검증을 통과한 요청만 저장에 도달한다', async () => {

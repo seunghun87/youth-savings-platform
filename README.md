@@ -161,8 +161,21 @@ curl -X POST https://<배포주소>/api/youth-policy/sync -H "x-sync-secret: <SY
 
 ### Android APK
 
-APK를 만들기 전에 `app/.env`의 `VITE_API_BASE_URL`을 배포된 백엔드 주소로 지정해야 합니다.
-Vite는 빌드 시점에 이 값을 코드에 넣으므로, 비워두면 에뮬레이터 전용 주소(`10.0.2.2`)로 빌드됩니다.
+APK에는 백엔드 주소가 빌드 시점에 박힙니다. Vite가 `VITE_API_BASE_URL`을 코드에 넣기 때문에,
+비워두면 에뮬레이터 전용 주소(`10.0.2.2`)로 빌드되어 실기기에서는 통신이 안 됩니다.
+
+#### 방법 1. GitHub Actions (PC에 Android SDK가 없을 때)
+
+저장소 **Actions → Android APK → Run workflow** 를 누르면 러너가 빌드해서
+APK를 아티팩트로 올려줍니다. 완료 후 실행 화면 하단 **Artifacts**에서 내려받습니다.
+
+- 백엔드 주소는 실행 시 입력란에 넣거나, **Settings → Secrets and variables → Actions → Variables**
+  에 `VITE_API_BASE_URL`을 등록해두면 매번 입력하지 않아도 됩니다.
+- Google 로그인을 쓰려면 같은 곳에 `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`도 등록합니다.
+
+#### 방법 2. 로컬 빌드 (Android Studio 또는 Android SDK + JDK 17 이상)
+
+`app/.env`에 `VITE_API_BASE_URL`을 지정한 뒤 실행합니다.
 
 ```bash
 cd app
@@ -172,7 +185,12 @@ cd android && ./gradlew assembleDebug
 ```
 
 결과물: `app/android/app/build/outputs/apk/debug/app-debug.apk`
-폰으로 옮겨 설치하거나 `adb install`을 사용합니다. (Android Studio 또는 Android SDK + JDK 17 필요)
+
+#### 설치
+
+폰으로 파일을 옮겨 실행하거나 `adb install app-debug.apk`를 씁니다.
+스토어를 거치지 않으므로 폰에서 **출처를 알 수 없는 앱 설치**를 허용해야 합니다.
+디버그 서명 APK라 사이드로딩 전용이며, 스토어 배포용 서명 APK는 별도 키스토어가 필요합니다.
 
 ### iOS
 

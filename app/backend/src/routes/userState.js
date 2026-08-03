@@ -509,4 +509,24 @@ router.put('/:id/saved/:productId', validateSavedToggle, async (req, res, next) 
   }
 });
 
+// 회원탈퇴: 앱 데이터는 user_profile의 ON DELETE CASCADE로 함께 지운 뒤
+// Supabase Auth 계정도 삭제한다. 이 경로 역시 authenticateUser를 거치므로
+// 로그인한 사용자는 자신의 계정만 탈퇴시킬 수 있다.
+router.delete('/:id/account', async (req, res, next) => {
+  try {
+    const removed = await supabase
+      .from('user_profile')
+      .delete()
+      .eq('client_id', req.params.id);
+    if (removed.error) throw removed.error;
+
+    const { error: authError } = await supabase.auth.admin.deleteUser(req.params.id);
+    if (authError) throw authError;
+
+    res.status(204).end();
+  } catch (error) {
+    next(error);
+  }
+});
+
 module.exports = router;
