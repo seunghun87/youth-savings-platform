@@ -19,18 +19,23 @@ router.post('/sync', syncLimiter, requireSyncSecret, async (req, res, next) => {
 const DEFAULT_LIMIT = 50;
 const MAX_LIMIT = 200;
 
-// 별도 탭용 목록 조회. ?age=25&income=3000&bracket=3&keyword=주거&limit=50 형태로 필터링
+// 별도 탭용 목록 조회. ?age=25&income=3000&bracket=3&keyword=주거&limit=50&city=경기도 형태로 필터링
 // (income 단위: 만원). 나이·소득을 넘기면 자격 판정(status/reason)이 함께 내려가고,
-// 충족 > 확인 필요 > 미충족 순으로 정렬된다.
+// 충족 > 확인 필요 > 미충족 순으로 정렬된다. city는 자유 텍스트 거주지역(예: "경기도 고양시")으로,
+// 시/도 단위까지만 인식해 그 지역 대상 정책 + 전국 대상 정책을 남긴다.
+// 응답 형태: { items, total, eligibleTotal }. items는 limit만큼 잘린 목록이고,
+// total/eligibleTotal은 limit 적용 전 전체 건수·충족 건수라 "OO건 있어요" 요약에 items.length
+// 대신 이 값을 써야 limit(기본 50)에 가려지지 않는다.
 router.get('/', publicReadLimiter, async (req, res, next) => {
   try {
     const age = integer(req.query.age, '나이', { min: 14, max: 120, nullable: true });
     const personalIncome = integer(req.query.income, '연소득', { min: 0, nullable: true });
     const incomeBracket = integer(req.query.bracket, '소득분위', { min: 1, max: 10, nullable: true });
     const keyword = optionalString(req.query.keyword, '검색어', 100);
+    const city = optionalString(req.query.city, '거주 지역', 100);
     const limit = integer(req.query.limit, '조회 개수', { min: 1, max: MAX_LIMIT, nullable: true }) ?? DEFAULT_LIMIT;
-    const policies = await listYouthPolicies({ age, personalIncome, incomeBracket, keyword, limit });
-    res.json(policies);
+    const result = await listYouthPolicies({ age, personalIncome, incomeBracket, keyword, limit, city });
+    res.json(result);
   } catch (err) {
     next(err);
   }

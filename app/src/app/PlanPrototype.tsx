@@ -206,7 +206,7 @@ export default function PlanPrototype({ clientId, initialState, onSaved }: {
     <div className="pp-shell">
       <header className="pp-header">
         <div className="pp-head-row">
-          <button className="pp-back" aria-label="뒤로" onClick={() => setStep(v => Math.max(0, v - 1))}>
+          <button className="pp-back" aria-label="뒤로" onClick={() => { setError(""); setStep(v => Math.max(0, v - 1)); }}>
             {step > 0 && <ArrowLeft size={21} />}
           </button>
           <strong>맞춤 플랜 만들기</strong>
@@ -335,11 +335,12 @@ export default function PlanPrototype({ clientId, initialState, onSaved }: {
                         </label>
                         <label>
                           <span>시작일</span>
-                          <input type="date" value={product.startedAt} onChange={e => updateSavingProduct(product.id, "startedAt", e.target.value)}/>
+                          {/* min/max로 연도 범위를 좁혀야 날짜 세그먼트 입력 중 실수로 몇 자리 밀려도(예: "202501") 브라우저가 막아준다 */}
+                          <input type="date" min="2000-01-01" max={new Date().toISOString().slice(0, 10)} value={product.startedAt} onChange={e => updateSavingProduct(product.id, "startedAt", e.target.value)}/>
                         </label>
                         <label>
                           <span>만기일</span>
-                          <input type="date" value={product.maturesAt} onChange={e => updateSavingProduct(product.id, "maturesAt", e.target.value)}/>
+                          <input type="date" min={product.startedAt || "2000-01-01"} max="2100-12-31" value={product.maturesAt} onChange={e => updateSavingProduct(product.id, "maturesAt", e.target.value)}/>
                         </label>
                       </div>
                     </div>
@@ -412,7 +413,7 @@ export default function PlanPrototype({ clientId, initialState, onSaved }: {
 
       {error && <div className="pp-error">{error}</div>}
       <footer className="pp-footer">
-        <button className="pp-primary" disabled={saving || !canContinue} onClick={() => step < 3 ? setStep(v => v + 1) : savePlan()}>
+        <button className="pp-primary" disabled={saving || !canContinue} onClick={() => { if (step < 3) { setError(""); setStep(v => v + 1); } else { savePlan(); } }}>
           {saving ? "플랜 저장 중" : buttonLabel} {!saving && <ChevronRight size={18}/>}
         </button>
       </footer>
