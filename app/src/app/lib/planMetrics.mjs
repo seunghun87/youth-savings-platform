@@ -15,6 +15,37 @@ export function estimatedAfterTaxInterest(monthly, annualRate, remainingMonths) 
   return Math.floor(payment * (rate / 100 / 12) * (months * (months + 1) / 2) * (1 - 0.154));
 }
 
+export function remainingPaymentPrincipal(monthly, paidThisMonth, remainingMonths) {
+  const payment = Math.max(0, Number(monthly) || 0);
+  const paid = Math.max(0, Number(paidThisMonth) || 0);
+  const futureMonths = Math.max(0, Number(remainingMonths) || 0);
+  return Math.max(0, payment - paid) + payment * futureMonths;
+}
+
+/** 현재 원금과 이번 달 잔여 납입액까지 포함한 만기 전 예상 세후 이자. */
+export function estimatedAccountAfterTaxInterest({ balance, monthly, paidThisMonth, annualRate, remainingMonths }) {
+  const principal = Math.max(0, Number(balance) || 0);
+  const payment = Math.max(0, Number(monthly) || 0);
+  const paid = Math.max(0, Number(paidThisMonth) || 0);
+  const rate = Math.max(0, Number(annualRate) || 0) / 100 / 12;
+  const futureMonths = Math.max(0, Number(remainingMonths) || 0);
+  const outstanding = Math.max(0, payment - paid);
+  const gross = principal * rate * futureMonths
+    + outstanding * rate * (futureMonths + 1)
+    + payment * rate * (futureMonths * (futureMonths + 1) / 2);
+  return Math.floor(gross * (1 - 0.154));
+}
+
+export function accountProjectedValue(account) {
+  const futurePrincipal = Number.isFinite(Number(account.futurePrincipal))
+    ? Math.max(0, Number(account.futurePrincipal))
+    : remainingPaymentPrincipal(account.monthly, account.paid, account.remainingMonths);
+  return Math.max(0, Number(account.balance) || 0)
+    + futurePrincipal
+    + Math.max(0, Number(account.interest) || 0)
+    + Math.max(0, Number(account.support) || 0);
+}
+
 export function calculatePlanMetrics({ target, current, unallocated, accounts }) {
   const safeTarget = Math.max(1, Number(target) || 0);
   const safeCurrent = Math.max(0, Number(current) || 0);
@@ -22,7 +53,9 @@ export function calculatePlanMetrics({ target, current, unallocated, accounts })
   const allocated = activeAccounts.reduce((sum, account) => sum + Math.max(0, Number(account.monthly) || 0), 0);
   const budget = Math.max(0, Number(unallocated) || 0) + allocated;
   const paid = activeAccounts.reduce((sum, account) => sum + Math.max(0, Number(account.paid) || 0), 0);
-  const futurePrincipal = activeAccounts.reduce((sum, account) => sum + Math.max(0, Number(account.monthly) || 0) * Math.max(0, Number(account.remainingMonths) || 0), 0);
+  const futurePrincipal = activeAccounts.reduce((sum, account) => sum + (Number.isFinite(Number(account.futurePrincipal))
+    ? Math.max(0, Number(account.futurePrincipal))
+    : remainingPaymentPrincipal(account.monthly, account.paid, account.remainingMonths)), 0);
   const totalInterest = activeAccounts.reduce((sum, account) => sum + Math.max(0, Number(account.interest) || 0), 0);
   const totalSupport = activeAccounts.reduce((sum, account) => sum + Math.max(0, Number(account.support) || 0), 0);
   const remaining = Math.max(0, safeTarget - safeCurrent);

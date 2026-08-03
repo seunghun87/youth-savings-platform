@@ -18,7 +18,7 @@ import {
 } from "lucide-react";
 import "./savings-plan-v2-prototype.css";
 import { addEnrolledProduct, fetchUserSavingsState, updateEnrolledProduct, updateSavingsPlan, type UserSavingsState } from "./lib/api";
-import { accountProgressPercent, calculatePlanMetrics, estimatedAfterTaxInterest, monthDiff } from "./lib/planMetrics.mjs";
+import { accountProgressPercent, accountProjectedValue, calculatePlanMetrics, estimatedAccountAfterTaxInterest, monthDiff, remainingPaymentPrincipal } from "./lib/planMetrics.mjs";
 import PlanPrototype from "./PlanPrototype";
 import { seoulDateKey, seoulMonthKey } from "./lib/dateKeys";
 
@@ -108,8 +108,10 @@ export default function SavingsPlanV2Prototype({clientId,live=false,embedded=fal
     const totalMonths=end?Math.max(1,monthDiff(p.started_at??currentMonth,p.matures_at!)):null;
     const paidMonths=new Set(contributions.map(x=>x.contributed_at.slice(0,7))).size;
     const remainingMonths=end?monthDiff(currentMonth,p.matures_at!):12;
-    const interest=estimatedAfterTaxInterest(p.monthly_amount,p.interest_rate,remainingMonths);
-    return {id:p.product_id,name:p.product_name,bank:p.bank,kind:`${p.contribution_type==="fixed"?"정액":p.contribution_type==="step_up"?"증액":"자유"}적립 · ${p.payment_frequency==="weekly"?"주":"월"} 납입`,monthly:Number(p.monthly_amount??0),paid,balance,months:totalMonths?`${paidMonths} / ${totalMonths}회`:`${paidMonths}회 납입`,maturity:end?`${end.getFullYear()}. ${String(end.getMonth()+1).padStart(2,"0")}`:"유지형",interest,support:0,remainingMonths,status:p.status,paidMonths,totalMonths,color:colors[index%colors.length]};
+    const monthly=Number(p.monthly_amount??0);
+    const futurePrincipal=remainingPaymentPrincipal(monthly,paid,remainingMonths);
+    const interest=estimatedAccountAfterTaxInterest({balance,monthly,paidThisMonth:paid,annualRate:p.interest_rate,remainingMonths});
+    return {id:p.product_id,name:p.product_name,bank:p.bank,kind:`${p.contribution_type==="fixed"?"정액":p.contribution_type==="step_up"?"증액":"자유"}적립 · ${p.payment_frequency==="weekly"?"주":"월"} 납입`,monthly,paid,balance,months:totalMonths?`${paidMonths} / ${totalMonths}회`:`${paidMonths}회 납입`,maturity:end?`${end.getFullYear()}. ${String(end.getMonth()+1).padStart(2,"0")}`:"유지형",interest,support:0,remainingMonths,futurePrincipal,status:p.status,paidMonths,totalMonths,color:colors[index%colors.length]};
   }):demoAccounts;
   const target = Number(userState?.plan.target_amount??50000000),
     current = Number(userState?.plan.current_amount??12000000),
@@ -279,7 +281,7 @@ export default function SavingsPlanV2Prototype({clientId,live=false,embedded=fal
               </button>
             </div>
             <section className="pv2-account-list">
-              {(showAllAccounts ? accounts : accounts.slice(0, 1)).map((a, index) => (
+              {(showAllAccounts ? accounts : accounts.slice(0, 1)).map((a) => (
                 <article key={a.id}>
                   <div className="pv2-account-head">
                     <i style={{ background: a.color }}>
@@ -327,13 +329,10 @@ export default function SavingsPlanV2Prototype({clientId,live=false,embedded=fal
                   <footer>
                     <span>전체 목표 기여 예상</span>
                     <b>
-                      {(
-                        ((a.balance + a.interest + a.support) / target) *
-                        100
-                      ).toFixed(1)}
+                      {((accountProjectedValue(a) / target) * 100).toFixed(1)}
                       %
                     </b>
-                    <strong>{money(a.balance + a.interest + a.support)}</strong>
+                    <strong>{money(accountProjectedValue(a))}</strong>
                   </footer>
                 </article>
               ))}
