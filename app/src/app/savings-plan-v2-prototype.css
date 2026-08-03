@@ -167,12 +167,15 @@
   border-bottom: 0;
   background: #fff;
 }
-.pv2-actions article:nth-of-type(2) {
+.pv2-actions article:first-of-type {
   border-radius: 17px 17px 0 0;
 }
-.pv2-actions article:last-child {
+.pv2-actions article:last-of-type {
   border-bottom: 1px solid var(--line);
   border-radius: 0 0 17px 17px;
+}
+.pv2-actions article:only-of-type {
+  border-radius: 17px;
 }
 .pv2-actions article > i {
   display: grid;
@@ -189,6 +192,7 @@
 }
 .pv2-actions article > div {
   display: flex;
+  min-width: 0;
   flex-direction: column;
 }
 .pv2-actions article b {
@@ -202,12 +206,15 @@
 .pv2-actions article .pv2-payment-status.paid,
 .pv2-actions article .pv2-payment-status.required,
 .pv2-actions article .pv2-payment-status.scheduled {
+  max-width: 100%;
+  box-sizing: border-box;
   width: fit-content;
   margin-top: 5px;
   padding: 3px 7px;
   border-radius: 999px;
   font-weight: 750;
   line-height: 1.35;
+  white-space: normal;
 }
 .pv2-actions article .pv2-payment-status.paid {
   background: #dff3e7;
@@ -223,6 +230,7 @@
 }
 .pv2-actions article strong {
   font-size: 11px;
+  white-space: nowrap;
 }
 .pv2-actions article button {
   grid-column: 2/-1;

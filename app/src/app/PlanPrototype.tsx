@@ -133,12 +133,26 @@ export default function PlanPrototype({ clientId, initialState, onSaved }: {
       await updateSavingsPlan(clientId, {
         target_amount:target * 10000, monthly_target:monthly * 10000, current_amount:currentBalance * 10000,
       });
-      await Promise.all(entered.map((product, index) => addEnrolledProduct(clientId, {
-        product_id:product.productId ?? `manual-${Date.now()}-${index}`,
-        product_name:product.name.trim(), bank:"직접 입력", status:"가입완료",
-        applied_at:product.startedAt, started_at:product.startedAt, matures_at:product.maturesAt,
-        interest_rate:Number(product.interestRate), monthly_amount:Number(product.monthlyAmount) * 10000,
-      })));
+      await Promise.all(entered.map((product, index) => {
+        const existing=initialState?.enrolled_products.find(saved=>saved.product_id===product.productId);
+        return addEnrolledProduct(clientId, {
+          product_id:product.productId ?? `manual-${Date.now()}-${index}`,
+          product_name:product.name.trim(),
+          bank:existing?.bank ?? "직접 입력",
+          status:existing?.status ?? "가입완료",
+          applied_at:existing?.applied_at ?? product.startedAt,
+          started_at:product.startedAt,
+          matures_at:product.maturesAt,
+          interest_rate:Number(product.interestRate),
+          monthly_amount:Number(product.monthlyAmount) * 10000,
+          opening_balance:Number(existing?.opening_balance ?? 0),
+          contribution_type:existing?.contribution_type ?? "flexible",
+          payment_frequency:existing?.payment_frequency ?? "monthly",
+          min_amount:existing?.min_amount ?? undefined,
+          max_amount:existing?.max_amount ?? undefined,
+          installment_step_amount:existing?.installment_step_amount ?? undefined,
+        });
+      }));
       await updateUserProfile(clientId, {
         name:name.trim(), age, city, annual_income:incomeAmount, is_homeowner:isHomeowner, income_reported:incomeReported, onboarding_completed:true,
       });
