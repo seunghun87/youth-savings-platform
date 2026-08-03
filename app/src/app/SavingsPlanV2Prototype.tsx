@@ -164,7 +164,7 @@ export default function SavingsPlanV2Prototype({clientId,live=false,embedded=fal
                   </i>
                   <div>
                     <b>{a.name}</b>
-                    <span className={a.paid>=a.monthly ? "pv2-payment-status paid" : a.paid===0 && i!==2 ? "pv2-payment-status required" : "pv2-payment-status"}>
+                    <span className={a.paid>=a.monthly ? "pv2-payment-status paid" : a.paid===0 && i===2 ? "pv2-payment-status scheduled" : a.paid===0 ? "pv2-payment-status required" : "pv2-payment-status"}>
                       {a.paid>=a.monthly
                         ? "이번 달 약정액 납입 완료"
                         : a.paid>0
