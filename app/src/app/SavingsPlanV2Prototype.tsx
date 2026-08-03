@@ -18,7 +18,7 @@ import {
 } from "lucide-react";
 import "./savings-plan-v2-prototype.css";
 import { addEnrolledProduct, fetchUserSavingsState, updateEnrolledProduct, updateSavingsPlan, type UserSavingsState } from "./lib/api";
-import { accountProgressPercent, accountProjectedValue, calculatePlanMetrics, estimatedAccountAfterTaxInterest, monthDiff, remainingPaymentPrincipal } from "./lib/planMetrics.mjs";
+import { accountProgressPercent, accountProjectedValue, buildAccountSnapshot, calculatePlanMetrics } from "./lib/planMetrics.mjs";
 import PlanPrototype from "./PlanPrototype";
 import { seoulDateKey, seoulMonthKey } from "./lib/dateKeys";
 
@@ -41,6 +41,7 @@ const demoAccounts = [
     status: "가입완료",
     paidMonths: 17,
     totalMonths: 60,
+    projectionAvailable: true,
     color: "#2f8f62",
   },
   {
@@ -59,6 +60,7 @@ const demoAccounts = [
     status: "가입완료",
     paidMonths: 12,
     totalMonths: 24,
+    projectionAvailable: true,
     color: "#efaa4f",
   },
   {
@@ -77,6 +79,7 @@ const demoAccounts = [
     status: "가입완료",
     paidMonths: 18,
     totalMonths: null,
+    projectionAvailable: false,
     color: "#6398dc",
   },
 ];
@@ -101,17 +104,9 @@ export default function SavingsPlanV2Prototype({clientId,live=false,embedded=fal
   useEffect(()=>{const timer=window.setInterval(()=>setCurrentMonth(seoulMonthKey()),60_000);return()=>window.clearInterval(timer)},[]);
   const colors=["#2f8f62","#efaa4f","#6398dc","#a77bd6"];
   const accounts=live&&userState?userState.enrolled_products.filter(x=>x.status!=="중도해지").map((p,index)=>{
-    const contributions=userState.contributions.filter(x=>x.product_name===p.product_name);
-    const balance=Number(p.opening_balance??0)+contributions.reduce((sum,x)=>sum+Number(x.amount),0);
-    const paid=contributions.filter(x=>x.contributed_at.slice(0,7)===currentMonth).reduce((sum,x)=>sum+Number(x.amount),0);
-    const start=p.started_at?new Date(p.started_at):new Date(),end=p.matures_at?new Date(p.matures_at):null;
-    const totalMonths=end?Math.max(1,monthDiff(p.started_at??currentMonth,p.matures_at!)):null;
-    const paidMonths=new Set(contributions.map(x=>x.contributed_at.slice(0,7))).size;
-    const remainingMonths=end?monthDiff(currentMonth,p.matures_at!):12;
-    const monthly=Number(p.monthly_amount??0);
-    const futurePrincipal=remainingPaymentPrincipal(monthly,paid,remainingMonths);
-    const interest=estimatedAccountAfterTaxInterest({balance,monthly,paidThisMonth:paid,annualRate:p.interest_rate,remainingMonths});
-    return {id:p.product_id,name:p.product_name,bank:p.bank,kind:`${p.contribution_type==="fixed"?"정액":p.contribution_type==="step_up"?"증액":"자유"}적립 · ${p.payment_frequency==="weekly"?"주":"월"} 납입`,monthly,paid,balance,months:totalMonths?`${paidMonths} / ${totalMonths}회`:`${paidMonths}회 납입`,maturity:end?`${end.getFullYear()}. ${String(end.getMonth()+1).padStart(2,"0")}`:"유지형",interest,support:0,remainingMonths,futurePrincipal,status:p.status,paidMonths,totalMonths,color:colors[index%colors.length]};
+    const snapshot=buildAccountSnapshot({product:p,contributions:userState.contributions,currentMonth,currentDate:seoulDateKey()});
+    const end=p.matures_at?new Date(p.matures_at):null;
+    return {id:p.product_id,name:p.product_name,bank:p.bank,kind:`${p.contribution_type==="fixed"?"정액":p.contribution_type==="step_up"?"증액":"자유"}적립 · ${p.payment_frequency==="weekly"?"주":"월"} 납입`,...snapshot,months:snapshot.totalMonths?`${snapshot.paidMonths} / ${snapshot.totalMonths}회`:`${snapshot.paidMonths}회 납입`,maturity:end?`${end.getFullYear()}. ${String(end.getMonth()+1).padStart(2,"0")}`:"만기일 미입력",support:0,color:colors[index%colors.length]};
   }):demoAccounts;
   const target = Number(userState?.plan.target_amount??50000000),
     current = Number(userState?.plan.current_amount??12000000),
@@ -315,7 +310,7 @@ export default function SavingsPlanV2Prototype({clientId,live=false,embedded=fal
                   <div className="pv2-account-progress">
                     <span>{a.months}</span>
                     <b>
-                      {a.maturity} {a.maturity !== "유지형" && "만기"}
+                      {a.maturity} {a.projectionAvailable && "만기"}
                     </b>
                     <div>
                       <i

@@ -16,3 +16,10 @@ export function previousSeoulMonthKey(date = new Date()) {
     .toISOString()
     .slice(0, 7);
 }
+
+export function addMonthsToDateKey(dateKey: string, months: number) {
+  const [year,month,day]=dateKey.split("-").map(Number);
+  const first=new Date(Date.UTC(year,month-1+Math.max(0,Math.trunc(months)),1));
+  const lastDay=new Date(Date.UTC(first.getUTCFullYear(),first.getUTCMonth()+1,0)).getUTCDate();
+  return `${first.getUTCFullYear()}-${String(first.getUTCMonth()+1).padStart(2,"0")}-${String(Math.min(day,lastDay)).padStart(2,"0")}`;
+}

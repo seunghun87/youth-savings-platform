@@ -58,6 +58,25 @@ export function accountProjectedValue(account) {
     + Math.max(0, Number(account.support) || 0);
 }
 
+export function buildAccountSnapshot({ product, contributions, currentMonth, currentDate }) {
+  const rows = (contributions ?? []).filter(row => row.product_name === product.product_name && row.contributed_at <= currentDate);
+  const balance = Math.max(0, Number(product.opening_balance) || 0)
+    + rows.reduce((sum,row)=>sum+Math.max(0,Number(row.amount)||0),0);
+  const paid = rows.filter(row=>row.contributed_at.slice(0,7)===currentMonth)
+    .reduce((sum,row)=>sum+Math.max(0,Number(row.amount)||0),0);
+  const monthly = Math.max(0, Number(product.monthly_amount) || 0);
+  const hasMaturity = Boolean(product.matures_at);
+  const maturityPassed = hasMaturity && product.matures_at < currentDate;
+  const status = maturityPassed && ACTIVE_STATUSES.has(product.status) ? "만기완료" : product.status;
+  const totalMonths = hasMaturity && product.started_at ? Math.max(1, monthDiff(product.started_at, product.matures_at)) : null;
+  const paidMonths = new Set(rows.map(row=>row.contributed_at.slice(0,7))).size;
+  const remainingMonths = hasMaturity && !maturityPassed ? monthDiff(currentMonth,product.matures_at) : 0;
+  const active = ACTIVE_STATUSES.has(status);
+  const futurePrincipal = active && hasMaturity ? remainingPaymentPrincipal(monthly,paid,remainingMonths) : 0;
+  const interest = active && hasMaturity ? estimatedAccountAfterTaxInterest({balance,monthly,paidThisMonth:paid,annualRate:product.interest_rate,remainingMonths}) : 0;
+  return { balance,paid,monthly,status,totalMonths,paidMonths,remainingMonths,futurePrincipal,interest,projectionAvailable:hasMaturity };
+}
+
 export function calculatePlanMetrics({ target, current, unallocated, accounts }) {
   const safeTarget = Math.max(1, Number(target) || 0);
   const safeCurrent = Math.max(0, Number(current) || 0);
