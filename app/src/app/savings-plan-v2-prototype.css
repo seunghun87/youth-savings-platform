@@ -199,6 +199,23 @@
   color: var(--muted);
   font-size: 9px;
 }
+.pv2-actions article .pv2-payment-status.paid,
+.pv2-actions article .pv2-payment-status.required {
+  width: fit-content;
+  margin-top: 5px;
+  padding: 3px 7px;
+  border-radius: 999px;
+  font-weight: 750;
+  line-height: 1.35;
+}
+.pv2-actions article .pv2-payment-status.paid {
+  background: #dff3e7;
+  color: #0b5a33;
+}
+.pv2-actions article .pv2-payment-status.required {
+  background: #fff0df;
+  color: #8a3f08;
+}
 .pv2-actions article strong {
   font-size: 11px;
 }
