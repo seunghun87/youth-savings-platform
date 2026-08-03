@@ -108,6 +108,8 @@ function buildPolicies(rawList) {
       category_large: toText(p.lclsfNm),
       category_medium: toText(p.mclsfNm),
       keywords: toText(p.plcyKywdNm),
+      // 적용 지역 시군구 코드(콤마 구분, 법정동코드 앞 5자리). 비어있으면 전국 대상 정책.
+      zip_cd: toText(p.zipCd),
       supervising_org: toText(p.sprvsnInstCdNm),
       operating_org: toText(p.operInstCdNm),
       apply_period: [toText(p.bizPrdBgngYmd), toText(p.bizPrdEndYmd)].filter(Boolean).join('~') || toText(p.bizPrdEtcCn),
@@ -238,6 +240,47 @@ async function getCachedPolicies() {
   return policyCacheLoading;
 }
 
+// 법정동코드(행정표준코드) 앞 2자리 시도코드. youth_policy.zip_cd(콤마 구분 5자리 시군구코드)가
+// 이 코드로 시작하면 해당 시/도 관할 정책으로 판단한다.
+// 신구 명칭을 모두 인식해야 프로필에 "강원도"/"강원특별자치도" 어느 쪽이 저장돼 있어도 매칭된다
+// (2023년 강원·전북 특별자치도 개편으로 시도코드 41xxx 체계에 51/52가 추가됨).
+const SIDO_CODE_BY_NAME = {
+  '서울특별시': '11', '서울': '11',
+  '부산광역시': '26', '부산': '26',
+  '대구광역시': '27', '대구': '27',
+  '인천광역시': '28', '인천': '28',
+  '광주광역시': '29', '광주': '29',
+  '대전광역시': '30', '대전': '30',
+  '울산광역시': '31', '울산': '31',
+  '세종특별자치시': '36', '세종': '36',
+  '경기도': '41', '경기': '41',
+  '강원특별자치도': '51', '강원도': '51', '강원': '51',
+  '충청북도': '43', '충북': '43',
+  '충청남도': '44', '충남': '44',
+  '전북특별자치도': '52', '전라북도': '52', '전북': '52',
+  '전라남도': '46', '전남': '46',
+  '경상북도': '47', '경북': '47',
+  '경상남도': '48', '경남': '48',
+  '제주특별자치도': '50', '제주': '50',
+};
+// 긴 이름부터 매칭해야 "전북특별자치도"가 "전북"에 먼저 매칭되는 일이 없다
+const SIDO_NAMES_BY_LENGTH = Object.keys(SIDO_CODE_BY_NAME).sort((a, b) => b.length - a.length);
+
+// user_profile.city는 "경기도 고양시"처럼 자유 텍스트라, 시/도 이름이 어디 포함돼 있든 찾아낸다
+function sidoCodeFromCity(city) {
+  if (!city) return null;
+  const name = SIDO_NAMES_BY_LENGTH.find(n => city.includes(n));
+  return name ? SIDO_CODE_BY_NAME[name] : null;
+}
+
+// zip_cd가 없으면(빈 문자열/null) 전국 대상 정책으로 간주해 항상 포함한다.
+// sidoCode를 못 찾았을 때(city 미입력·인식 불가 지역명)도 필터링하지 않고 그대로 통과시킨다.
+function matchesRegion(policy, sidoCode) {
+  if (!sidoCode) return true;
+  if (!policy.zip_cd) return true;
+  return policy.zip_cd.split(',').some(code => code.trim().startsWith(sidoCode));
+}
+
 const STATUS_ORDER = { '충족': 0, '확인 필요': 1, '미충족': 2 };
 
 // 정렬 우선순위: ① 충족 > 확인 필요 > 미충족
@@ -249,12 +292,14 @@ function comparePolicies(a, b) {
   return spanA - spanB;
 }
 
-async function listYouthPolicies({ age, keyword, personalIncome, incomeBracket, limit } = {}) {
+async function listYouthPolicies({ age, keyword, personalIncome, incomeBracket, limit, city } = {}) {
   const data = await getCachedPolicies();
+  const sidoCode = sidoCodeFromCity(city);
 
-  // 자격 미달(미충족) 정책도 걸러내지 않고 사유와 함께 그대로 포함한다. 검색어만 필터링.
+  // 자격 미달(미충족) 정책도 걸러내지 않고 사유와 함께 그대로 포함한다. 검색어·지역만 필터링.
   const matched = data.filter(p =>
-    !keyword || p.name.includes(keyword) || (p.keywords && p.keywords.includes(keyword))
+    (!keyword || p.name.includes(keyword) || (p.keywords && p.keywords.includes(keyword))) &&
+    matchesRegion(p, sidoCode)
   );
 
   // age/personalIncome 둘 다 없으면(사용자 컨텍스트 없이 목록만 조회) 판정 자체가 의미 없어 status를 null로 둔다

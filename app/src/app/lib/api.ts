@@ -277,6 +277,7 @@ export interface YouthPolicy {
   category_large: string | null;
   category_medium: string | null;
   keywords: string | null;
+  zip_cd: string | null;
   supervising_org: string | null;
   operating_org: string | null;
   apply_period: string | null;
@@ -292,7 +293,7 @@ export interface YouthPolicy {
  * 실패 시 null 반환 — 호출부는 에러 상태로 처리.
  */
 export async function fetchYouthPolicies(
-  params: { age?: number; income?: number; bracket?: number; keyword?: string; limit?: number } = {},
+  params: { age?: number; income?: number; bracket?: number; keyword?: string; limit?: number; city?: string } = {},
 ): Promise<YouthPolicy[] | null> {
   const query = new URLSearchParams();
   if (params.age != null) query.set("age", String(params.age));
@@ -300,6 +301,7 @@ export async function fetchYouthPolicies(
   if (params.bracket != null) query.set("bracket", String(params.bracket));
   if (params.keyword) query.set("keyword", params.keyword);
   if (params.limit != null) query.set("limit", String(params.limit));
+  if (params.city) query.set("city", params.city);
 
   try {
     const res = await fetch(`${API_BASE_URL}/api/youth-policy?${query.toString()}`);
