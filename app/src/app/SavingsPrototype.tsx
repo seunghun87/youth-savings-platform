@@ -488,6 +488,7 @@ const POLICY_ICONS: Record<string, typeof Landmark> = {
 function BenefitsPage({profile,onNotifications,onOpen}:{profile:UserSavingsState["profile"];onNotifications:()=>void;onOpen:(policy:YouthPolicy)=>void}) {
   const [category,setCategory]=useState("전체");
   const [policies,setPolicies]=useState<YouthPolicy[]|null>(null);
+  const [eligibleTotal,setEligibleTotal]=useState(0);
   const [loading,setLoading]=useState(true);
   const [failed,setFailed]=useState(false);
 
@@ -496,14 +497,17 @@ function BenefitsPage({profile,onNotifications,onOpen}:{profile:UserSavingsState
     let active=true;
     setLoading(true);setFailed(false);
     fetchYouthPolicies({age:profile.age,income:profile.annual_income,city:profile.city,limit:50})
-      .then(data=>{if(!active)return;if(data)setPolicies(data);else setFailed(true)})
+      .then(data=>{if(!active)return;if(data){setPolicies(data.items);setEligibleTotal(data.eligibleTotal);}else setFailed(true)})
       .finally(()=>{if(active)setLoading(false)});
     return ()=>{active=false};
   },[profile.age,profile.annual_income,profile.city]);
 
-  const categories=["전체",...Array.from(new Set((policies??[]).map(p=>p.category_large).filter((x):x is string=>!!x)))];
-  const shown=(policies??[]).filter(p=>category==="전체"||p.category_large===category);
-  const eligibleCount=(policies??[]).filter(p=>p.status==="충족").length;
+  // category_large는 "일자리, 교육"처럼 여러 분류가 콤마로 같이 올 수 있어(백엔드에서 중복은
+  // 이미 제거됨), 탭 목록·필터 모두 콤마로 나눈 개별 분류 단위로 판단해 두 분류 모두에
+  // 속하는 정책이 양쪽 탭에서 다 보이게 한다.
+  const policyCategories=(p:YouthPolicy)=>p.category_large?p.category_large.split(", "):[];
+  const categories=["전체",...Array.from(new Set((policies??[]).flatMap(policyCategories)))];
+  const shown=(policies??[]).filter(p=>category==="전체"||policyCategories(p).includes(category));
 
   return (
     <>
@@ -524,15 +528,15 @@ function BenefitsPage({profile,onNotifications,onOpen}:{profile:UserSavingsState
         <p className="sp-benefits-empty">조건에 맞는 청년정책을 찾지 못했어요.</p>
       ) : (
         <>
-          {eligibleCount>0 && (
-            <p className="sp-benefits-summary">지원 조건을 충족하는 정책이 <b>{eligibleCount}건</b> 있어요.</p>
+          {eligibleTotal>0 && (
+            <p className="sp-benefits-summary">지원 조건을 충족하는 정책이 <b>{eligibleTotal}건</b> 있어요.</p>
           )}
           <div className="sp-chips">
             {categories.map(x=><button key={x} className={category===x?"on":""} onClick={()=>setCategory(x)}>{x}</button>)}
           </div>
           <div className="sp-benefits">
             {shown.map(p=>{
-              const Icon=POLICY_ICONS[p.category_large??""]??Gift;
+              const Icon=POLICY_ICONS[policyCategories(p)[0]??""]??Gift;
               return (
                 <article key={p.id} role="button" tabIndex={0} onClick={()=>onOpen(p)} onKeyDown={e=>e.key==="Enter"&&onOpen(p)}>
                   <i><Icon /></i>

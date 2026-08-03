@@ -87,6 +87,17 @@ function toIncomeLimit(value) {
   return Number.isFinite(n) && n > 0 ? n : null;
 }
 
+// 온통청년 API가 같은 대/중분류를 콤마로 중복해서 내려주는 경우가 실제로 있다
+// (예: "금융･복지･문화,금융･복지･문화,금융･복지･문화,금융･복지･문화"). 콤마로 나눠 중복을
+// 제거해 저장한다. 드물게 서로 다른 분류가 같이 오는 경우(예: "일자리,교육")는 두 값 다
+// 남겨 프론트에서 두 카테고리 모두에 속하는 정책으로 표시할 수 있게 한다.
+function normalizeCategory(value) {
+  const text = toText(value);
+  if (!text) return null;
+  const unique = [...new Set(text.split(',').map(s => s.trim()).filter(Boolean))];
+  return unique.join(', ') || null;
+}
+
 function buildPolicies(rawList) {
   return rawList
     .filter(p => p.plcyNo && p.plcyNm)
@@ -105,8 +116,8 @@ function buildPolicies(rawList) {
       eligibility_text: toText(p.addAplyQlfcCndCn),
       // 참여 제한 대상(자격요건과 반대 개념: 배제 조건)
       exclusion_text: toText(p.ptcpPrpTrgtCn),
-      category_large: toText(p.lclsfNm),
-      category_medium: toText(p.mclsfNm),
+      category_large: normalizeCategory(p.lclsfNm),
+      category_medium: normalizeCategory(p.mclsfNm),
       keywords: toText(p.plcyKywdNm),
       // 적용 지역 시군구 코드(콤마 구분, 법정동코드 앞 5자리). 비어있으면 전국 대상 정책.
       zip_cd: toText(p.zipCd),
@@ -313,8 +324,15 @@ async function listYouthPolicies({ age, keyword, personalIncome, incomeBracket, 
   // 판정 결과가 있을 때만 정렬한다(없으면 최신순 그대로 유지).
   if (hasUserContext) judged.sort(comparePolicies);
 
+  // limit으로 자르기 전에 실제 충족 건수를 세어둔다. 응답을 배열째로 내려주면 호출부가
+  // limit으로 잘린 배열의 길이를 "충족 건수"로 오인하게 되므로(정책이 수천 건이라 실제
+  // 충족 건수가 limit보다 훨씬 클 수 있음) 별도 필드로 정확한 값을 함께 내려준다.
+  const eligibleTotal = hasUserContext ? judged.filter(p => p.status === '충족').length : 0;
+
   // 정책이 수천 건이라 전량을 그대로 내려보내면 응답이 수 MB가 된다.
-  return limit ? judged.slice(0, limit) : judged;
+  const items = limit ? judged.slice(0, limit) : judged;
+
+  return { items, total: judged.length, eligibleTotal };
 }
 
 module.exports = { syncYouthPolicies, listYouthPolicies, invalidatePolicyCache };

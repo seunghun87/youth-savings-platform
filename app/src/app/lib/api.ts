@@ -287,6 +287,13 @@ export interface YouthPolicy {
   reason: string | null;
 }
 
+/** /api/youth-policy 응답. items는 limit만큼 잘린 목록, total/eligibleTotal은 limit 적용 전 전체 건수다. */
+export interface YouthPolicyListResult {
+  items: YouthPolicy[];
+  total: number;
+  eligibleTotal: number;
+}
+
 /**
  * 백엔드(/api/youth-policy) 호출. 나이·연소득(만원)을 넘기면 자격 판정과 미충족 사유가
  * 함께 내려오고, 충족 > 확인 필요 > 미충족 순으로 정렬된다.
@@ -294,7 +301,7 @@ export interface YouthPolicy {
  */
 export async function fetchYouthPolicies(
   params: { age?: number; income?: number; bracket?: number; keyword?: string; limit?: number; city?: string } = {},
-): Promise<YouthPolicy[] | null> {
+): Promise<YouthPolicyListResult | null> {
   const query = new URLSearchParams();
   if (params.age != null) query.set("age", String(params.age));
   if (params.income != null) query.set("income", String(params.income));
