@@ -526,6 +526,9 @@
   height: 100%;
   border-radius: inherit;
 }
+.pv2-account-progress > div.unavailable { background: repeating-linear-gradient(135deg,#edf0ee,#edf0ee 6px,#f8f9f8 6px,#f8f9f8 12px); }
+.pv2-account-progress > div.unavailable i { width: 0!important; }
+.pv2-projection-help { margin: 12px 0 0; padding: 10px 11px; border-radius: 10px; background: #fff7e8; color: #75521c!important; font-size: 9px; line-height: 1.5; }
 .pv2-account-list footer {
   display: flex;
   align-items: center;

@@ -38,6 +38,7 @@ const demoAccounts = [
     interest: 940000,
     support: 720000,
     remainingMonths: 43,
+    futurePrincipal: 12600000,
     status: "가입완료",
     paidMonths: 17,
     totalMonths: 60,
@@ -57,6 +58,7 @@ const demoAccounts = [
     interest: 210000,
     support: 0,
     remainingMonths: 12,
+    futurePrincipal: 2200000,
     status: "가입완료",
     paidMonths: 12,
     totalMonths: 24,
@@ -76,6 +78,7 @@ const demoAccounts = [
     interest: 120000,
     support: 0,
     remainingMonths: 60,
+    futurePrincipal: 0,
     status: "가입완료",
     paidMonths: 18,
     totalMonths: null,
@@ -295,24 +298,24 @@ export default function SavingsPlanV2Prototype({clientId,live=false,embedded=fal
                   </div>
                   <div className="pv2-account-numbers">
                     <div>
-                      <span>현재 원금</span>
+                      <span>현재 납입 원금</span>
                       <b>{money(a.balance)}</b>
                     </div>
                     <div>
-                      <span>월 약속</span>
-                      <b>{money(a.monthly)}</b>
+                      <span>앞으로 납입할 원금</span>
+                      <b>{a.projectionAvailable?money(a.futurePrincipal):"계산 대기"}</b>
                     </div>
                     <div>
-                      <span>예상 이자</span>
-                      <b>+{money(a.interest)}</b>
+                      <span>예상 세후 이자</span>
+                      <b>{a.projectionAvailable?`+${money(a.interest)}`:"계산 대기"}</b>
                     </div>
                   </div>
                   <div className="pv2-account-progress">
-                    <span>{a.months}</span>
+                    <span>{a.months} · 월 약정 {money(a.monthly)}</span>
                     <b>
                       {a.maturity} {a.projectionAvailable && "만기"}
                     </b>
-                    <div>
+                    <div className={a.projectionAvailable?"":"unavailable"}>
                       <i
                         style={{
                           width: `${accountProgressPercent(a.paidMonths,a.totalMonths)}%`,
@@ -322,13 +325,14 @@ export default function SavingsPlanV2Prototype({clientId,live=false,embedded=fal
                     </div>
                   </div>
                   <footer>
-                    <span>전체 목표 기여 예상</span>
+                    <span>{a.projectionAvailable?"만기 예상 수령액":"현재 확정 납입액"}</span>
                     <b>
                       {((accountProjectedValue(a) / target) * 100).toFixed(1)}
-                      %
+                      % 기여
                     </b>
-                    <strong>{money(accountProjectedValue(a))}</strong>
+                    <strong>{money(a.projectionAvailable?accountProjectedValue(a):a.balance)}</strong>
                   </footer>
+                  {!a.projectionAvailable&&<p className="pv2-projection-help">만기일을 입력하면 남은 원금·세후 이자·만기 수령액을 계산할 수 있어요. 마이의 프로필 수정에서 적금 만기일을 보완해주세요.</p>}
                 </article>
               ))}
               {accounts.length>1&&<button className="pv2-show-accounts" onClick={()=>setShowAllAccounts(x=>!x)}>{showAllAccounts?"적금 접기":`나머지 적금 ${accounts.length-1}개 보기`}<ChevronRight size={16}/></button>}
