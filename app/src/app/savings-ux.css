@@ -66,6 +66,10 @@
 .sp-chips { scrollbar-width: none; }
 .sp-chips::-webkit-scrollbar { display: none; }
 .sp-product-detail { max-height: 92dvh; overflow-y: auto; }
+.sp-product-disclosure{display:flex;gap:10px;margin:14px 0 4px;padding:13px 14px;border:1px solid #d8e6dc;border-radius:14px;background:#f1f8f3;color:var(--sp)}
+.sp-product-disclosure svg{flex:none;margin-top:2px}.sp-product-disclosure p{display:flex;margin:0;flex-direction:column;gap:3px}.sp-product-disclosure b{font-size:11px}.sp-product-disclosure span{color:#587061;font-size:10px;line-height:1.5}
+.sp-source-note{display:flex;margin:14px 0;padding:12px;border-radius:12px;background:#f5f7f4;flex-direction:column;gap:4px}.sp-source-note b{color:var(--sptxt);font-size:11px}.sp-source-note span{color:var(--sp);font-size:11px}.sp-source-note small{margin:0!important;color:var(--spmuted);font-size:9px;line-height:1.45}
+.sp-my-menu .sp-account-delete i,.sp-my-menu .sp-account-delete strong{color:#b42318}.sp-my-menu .sp-account-delete i{background:#fff0ee}
 .sp-contribution-rule, .sp-contribution-hint {
   display: flex;
   flex-direction: column;

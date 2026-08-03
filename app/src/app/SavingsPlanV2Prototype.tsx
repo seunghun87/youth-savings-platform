@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import "./savings-plan-v2-prototype.css";
 import { addEnrolledProduct, fetchUserSavingsState, updateEnrolledProduct, updateSavingsPlan, type UserSavingsState } from "./lib/api";
+import { accountProgressPercent, calculatePlanMetrics, estimatedAfterTaxInterest, monthDiff } from "./lib/planMetrics.mjs";
 import PlanPrototype from "./PlanPrototype";
 
 type View = "all" | "now" | "assets" | "accounts" | "future";
@@ -36,6 +37,9 @@ const demoAccounts = [
     interest: 940000,
     support: 720000,
     remainingMonths: 43,
+    status: "가입완료",
+    paidMonths: 17,
+    totalMonths: 60,
     color: "#2f8f62",
   },
   {
@@ -51,6 +55,9 @@ const demoAccounts = [
     interest: 210000,
     support: 0,
     remainingMonths: 12,
+    status: "가입완료",
+    paidMonths: 12,
+    totalMonths: 24,
     color: "#efaa4f",
   },
   {
@@ -66,6 +73,9 @@ const demoAccounts = [
     interest: 120000,
     support: 0,
     remainingMonths: 60,
+    status: "가입완료",
+    paidMonths: 18,
+    totalMonths: null,
     color: "#6398dc",
   },
 ];
@@ -93,24 +103,24 @@ export default function SavingsPlanV2Prototype({clientId,live=false,embedded=fal
     const balance=Number(p.opening_balance??0)+contributions.reduce((sum,x)=>sum+Number(x.amount),0);
     const paid=contributions.filter(x=>x.contributed_at.slice(0,7)===currentMonth).reduce((sum,x)=>sum+Number(x.amount),0);
     const start=p.started_at?new Date(p.started_at):new Date(),end=p.matures_at?new Date(p.matures_at):null;
-    const totalMonths=end?Math.max(1,(end.getFullYear()-start.getFullYear())*12+end.getMonth()-start.getMonth()):null;
+    const totalMonths=end?Math.max(1,monthDiff(p.started_at??currentMonth,p.matures_at!)):null;
     const paidMonths=new Set(contributions.map(x=>x.contributed_at.slice(0,7))).size;
-    const remainingMonths=end?Math.max(0,(end.getFullYear()-new Date().getFullYear())*12+end.getMonth()-new Date().getMonth()):12;
-    const interest=Math.floor(Number(p.monthly_amount??0)*(Number(p.interest_rate??0)/100/12)*(remainingMonths*(remainingMonths+1)/2)*(1-.154));
-    return {id:p.product_id,name:p.product_name,bank:p.bank,kind:`${p.contribution_type==="fixed"?"정액":p.contribution_type==="step_up"?"증액":"자유"}적립 · ${p.payment_frequency==="weekly"?"주":"월"} 납입`,monthly:Number(p.monthly_amount??0),paid,balance,months:totalMonths?`${paidMonths} / ${totalMonths}회`:`${paidMonths}회 납입`,maturity:end?`${end.getFullYear()}. ${String(end.getMonth()+1).padStart(2,"0")}`:"유지형",interest,support:0,remainingMonths,color:colors[index%colors.length]};
+    const remainingMonths=end?monthDiff(currentMonth,p.matures_at!):12;
+    const interest=estimatedAfterTaxInterest(p.monthly_amount,p.interest_rate,remainingMonths);
+    return {id:p.product_id,name:p.product_name,bank:p.bank,kind:`${p.contribution_type==="fixed"?"정액":p.contribution_type==="step_up"?"증액":"자유"}적립 · ${p.payment_frequency==="weekly"?"주":"월"} 납입`,monthly:Number(p.monthly_amount??0),paid,balance,months:totalMonths?`${paidMonths} / ${totalMonths}회`:`${paidMonths}회 납입`,maturity:end?`${end.getFullYear()}. ${String(end.getMonth()+1).padStart(2,"0")}`:"유지형",interest,support:0,remainingMonths,status:p.status,paidMonths,totalMonths,color:colors[index%colors.length]};
   }):demoAccounts;
   const target = Number(userState?.plan.target_amount??50000000),
     current = Number(userState?.plan.current_amount??12000000),
-    unallocated=Number(userState?.plan.monthly_target??200000),
-    allocated = accounts.reduce((s, x) => s + x.monthly, 0),
-    budget = allocated+unallocated,
-    paid = accounts.reduce((s, x) => s + x.paid, 0);
-  const commitmentAccounts=accounts.filter(x=>x.monthly>0);
+    unallocated=Number(userState?.plan.monthly_target??200000);
+  const metrics=calculatePlanMetrics({target,current,unallocated,accounts});
+  const {allocated,budget,paid,futurePrincipal,totalInterest,totalSupport,expectedAssets,remaining,baseMonths}=metrics;
+  const commitmentAccounts=metrics.activeAccounts.filter(x=>x.monthly>0);
   const managedAccount=accounts.find(x=>x.id===cancelProductId)??accounts[0];
-  const totalInterest=accounts.reduce((sum,x)=>sum+x.interest,0),totalSupport=accounts.reduce((sum,x)=>sum+x.support,0),futurePrincipal=accounts.reduce((sum,x)=>sum+x.monthly*x.remainingMonths,0);
-  const expectedAssets=current+futurePrincipal+totalInterest+totalSupport,accuracy=live&&userState?Math.round(userState.enrolled_products.reduce((sum,p)=>sum+40+(p.interest_rate?30:0)+(p.matures_at?30:0),0)/Math.max(1,userState.enrolled_products.length)):82;
-  const remaining=Math.max(0,target-current),baseMonths=Math.ceil(remaining/Math.max(1,budget)),cancelAccount=accounts[0],cancelBudget=Math.max(1,budget-(cancelAccount?.monthly??0));
-  const values = useMemo(()=>scenario === "cancel"?{monthly:cancelBudget,interest:Math.max(0,totalInterest-(cancelAccount?.interest??0)),support:Math.max(0,totalSupport-(cancelAccount?.support??0)),months:Math.ceil(remaining/cancelBudget),label:`${cancelAccount?.name??"적금"} 해지`}:scenario === "lower"?{monthly:Math.max(10000,budget-150000),interest:Math.floor(totalInterest*.82),support:totalSupport,months:Math.ceil(remaining/Math.max(10000,budget-150000)),label:"월 납입 15만 원 감액"}:{monthly:budget,interest:totalInterest,support:totalSupport,months:baseMonths,label:"현재 플랜 유지"},[scenario,budget,totalInterest,totalSupport,remaining,cancelBudget,cancelAccount,baseMonths]);
+  const accuracy=live&&userState?Math.round(userState.enrolled_products.reduce((sum,p)=>sum+40+(p.interest_rate?30:0)+(p.matures_at?30:0),0)/Math.max(1,userState.enrolled_products.length)):82;
+  const cancelAccount=metrics.activeAccounts[0],cancelBudget=Math.max(0,budget-(cancelAccount?.monthly??0));
+  const monthsFor=(monthly:number)=>remaining===0?0:monthly>0?Math.ceil(remaining/monthly):null;
+  const values = useMemo(()=>scenario === "cancel"?{monthly:cancelBudget,interest:Math.max(0,totalInterest-(cancelAccount?.interest??0)),support:Math.max(0,totalSupport-(cancelAccount?.support??0)),months:monthsFor(cancelBudget),label:`${cancelAccount?.name??"적금"} 해지`}:scenario === "lower"?{monthly:Math.max(0,budget-150000),interest:Math.floor(totalInterest*.82),support:totalSupport,months:monthsFor(Math.max(0,budget-150000)),label:"월 납입 15만 원 감액"}:{monthly:budget,interest:totalInterest,support:totalSupport,months:baseMonths,label:"현재 플랜 유지"},[scenario,budget,totalInterest,totalSupport,remaining,cancelBudget,cancelAccount,baseMonths]);
+  const stackScale=Math.max(target,expectedAssets,1);
   if(loading)return <div className="pv2-shell"><main><section className="pv2-loading">저축 플랜을 불러오는 중...</section></main></div>;
   if(live&&!userState?.profile.onboarding_completed)return <PlanPrototype clientId={clientId} onSaved={reload}/>;
   const monthLabel=new Intl.DateTimeFormat("ko-KR",{month:"long"}).format(new Date()),monthEnd=new Date(new Date().getFullYear(),new Date().getMonth()+1,0).getDate();
@@ -193,10 +203,10 @@ export default function SavingsPlanV2Prototype({clientId,live=false,embedded=fal
               <h1>{money(current)}</h1>
               <p>실제 입력된 원금과 지급된 이자만 포함해요</p>
               <div className="pv2-stacked">
-                <i style={{ width: `${Math.min(100,current/target*100)}%` }} />
-                <i style={{ width: `${Math.min(100,futurePrincipal/target*100)}%` }} />
-                <i style={{ width: `${Math.min(100,totalInterest/target*100)}%` }} />
-                <i style={{ width: `${Math.min(100,totalSupport/target*100)}%` }} />
+                <i style={{ width: `${current/stackScale*100}%` }} />
+                <i style={{ width: `${futurePrincipal/stackScale*100}%` }} />
+                <i style={{ width: `${totalInterest/stackScale*100}%` }} />
+                <i style={{ width: `${totalSupport/stackScale*100}%` }} />
               </div>
               <div className="pv2-legend">
                 <span>
@@ -306,7 +316,7 @@ export default function SavingsPlanV2Prototype({clientId,live=false,embedded=fal
                     <div>
                       <i
                         style={{
-                          width: `${Math.min(100, (index + 1) * 24)}%`,
+                          width: `${accountProgressPercent(a.paidMonths,a.totalMonths)}%`,
                           background: a.color,
                         }}
                       />
@@ -325,7 +335,7 @@ export default function SavingsPlanV2Prototype({clientId,live=false,embedded=fal
                   </footer>
                 </article>
               ))}
-              <button className="pv2-show-accounts" onClick={()=>setShowAllAccounts(x=>!x)}>{showAllAccounts?"적금 접기":`나머지 적금 ${accounts.length-1}개 보기`}<ChevronRight size={16}/></button>
+              {accounts.length>1&&<button className="pv2-show-accounts" onClick={()=>setShowAllAccounts(x=>!x)}>{showAllAccounts?"적금 접기":`나머지 적금 ${accounts.length-1}개 보기`}<ChevronRight size={16}/></button>}
             </section>
           </>
         )}
@@ -358,7 +368,7 @@ export default function SavingsPlanV2Prototype({clientId,live=false,embedded=fal
             <section className="pv2-scenario-card">
               <span>{values.label}</span>
               <h2>
-                {Math.floor(values.months / 12)}년 {values.months % 12}개월 뒤
+                {values.months===null?"월 저축액 설정 필요":`${Math.floor(values.months / 12)}년 ${values.months % 12}개월 뒤`}
               </h2>
               <p>목표 예상 달성 시점</p>
               <div className="pv2-scenario-grid">
@@ -379,7 +389,7 @@ export default function SavingsPlanV2Prototype({clientId,live=false,embedded=fal
                   <b className={scenario === "keep" ? "" : "bad"}>
                     {scenario === "keep"
                       ? "기준"
-                      : `+${values.months - 43}개월`}
+                      : values.months===null||baseMonths===null?"계산 불가":`${values.months-baseMonths>=0?"+":""}${values.months-baseMonths}개월`}
                   </b>
                 </div>
               </div>
@@ -493,9 +503,9 @@ export default function SavingsPlanV2Prototype({clientId,live=false,embedded=fal
               </div>
               <div>
                 <span>목표 달성</span>
-                <b>{Math.floor(baseMonths/12)}년 {baseMonths%12}개월</b>
+                <b>{baseMonths===null?"계산 불가":`${Math.floor(baseMonths/12)}년 ${baseMonths%12}개월`}</b>
                 <ChevronRight />
-                <strong>{Math.floor(Math.ceil(remaining/Math.max(1,budget-managedAccount.monthly))/12)}년 {Math.ceil(remaining/Math.max(1,budget-managedAccount.monthly))%12}개월</strong>
+                <strong>{monthsFor(Math.max(0,budget-managedAccount.monthly))===null?"계산 불가":`${Math.floor((monthsFor(Math.max(0,budget-managedAccount.monthly))??0)/12)}년 ${(monthsFor(Math.max(0,budget-managedAccount.monthly))??0)%12}개월`}</strong>
               </div>
               <div>
                 <span>예상 혜택</span>

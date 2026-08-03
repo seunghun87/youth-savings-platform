@@ -11,19 +11,9 @@ import {
   type UserSavingsState,
 } from "./lib/api";
 import "./plan-prototype.css";
+import { searchRegions } from "./lib/regionSearch";
 
 const steps = ["기본 정보", "재무 상황", "생활 정보", "목표 설정"];
-const regions = [
-  "서울특별시 강남구", "서울특별시 강서구", "서울특별시 마포구", "서울특별시 중구",
-  "부산광역시 강서구", "부산광역시 해운대구", "부산광역시 중구",
-  "대구광역시 달서구", "대구광역시 수성구", "인천광역시 남동구", "인천광역시 연수구",
-  "광주광역시 광산구", "광주광역시 북구", "대전광역시 유성구", "대전광역시 서구",
-  "울산광역시 남구", "울산광역시 울주군", "세종특별자치시",
-  "경기도 고양시", "경기도 성남시", "경기도 수원시", "경기도 용인시",
-  "강원특별자치도 강릉시", "강원특별자치도 춘천시", "충청북도 청주시",
-  "충청남도 천안시", "전북특별자치도 전주시", "전라남도 순천시",
-  "경상북도 포항시", "경상남도 창원시", "제주특별자치도 제주시",
-];
 
 type ChoiceProps = {
   selected: boolean;
@@ -94,7 +84,7 @@ export default function PlanPrototype({ clientId, initialState, onSaved }: {
     : 0;
   const totalMonthly = monthly + existingMonthly;
   const months = Math.max(0, Math.ceil((target - currentBalance) / totalMonthly));
-  const boostedMonths = Math.max(1, months - 10);
+  const boostedMonths = Math.max(0, months - 10);
   const period = `${Math.floor(months / 12)}년 ${months % 12}개월`;
   const boostedPeriod = `${Math.floor(boostedMonths / 12)}년 ${boostedMonths % 12}개월`;
   const toggleInterest = (name: string) =>
@@ -105,9 +95,7 @@ export default function PlanPrototype({ clientId, initialState, onSaved }: {
     setSavingProducts(products => [...products, emptySavingProduct(Math.max(...products.map(product => product.id), 0) + 1)]);
   const removeSavingProduct = (id: number) =>
     setSavingProducts(products => products.length === 1 ? [emptySavingProduct(products[0].id)] : products.filter(product => product.id !== id));
-  const regionResults = regionQuery.trim()
-    ? regions.filter(region => region.replace(/\s/g, "").includes(regionQuery.replace(/\s/g, ""))).slice(0, 6)
-    : [];
+  const regionResults = searchRegions(regionQuery);
 
   const buttonLabel = useMemo(() => {
     if (step === 0) return "재무 정보 입력하기";
@@ -206,7 +194,7 @@ export default function PlanPrototype({ clientId, initialState, onSaved }: {
     <div className="pp-shell">
       <header className="pp-header">
         <div className="pp-head-row">
-          <button className="pp-back" aria-label="뒤로" onClick={() => setStep(v => Math.max(0, v - 1))}>
+          <button className="pp-back" aria-label="뒤로" onClick={() => { setError(""); setStep(v => Math.max(0, v - 1)); }}>
             {step > 0 && <ArrowLeft size={21} />}
           </button>
           <strong>맞춤 플랜 만들기</strong>
@@ -335,11 +323,11 @@ export default function PlanPrototype({ clientId, initialState, onSaved }: {
                         </label>
                         <label>
                           <span>시작일</span>
-                          <input type="date" value={product.startedAt} onChange={e => updateSavingProduct(product.id, "startedAt", e.target.value)}/>
+                          <input type="date" min="2000-01-01" max={new Date().toISOString().slice(0,10)} value={product.startedAt} onChange={e => updateSavingProduct(product.id, "startedAt", e.target.value)}/>
                         </label>
                         <label>
                           <span>만기일</span>
-                          <input type="date" value={product.maturesAt} onChange={e => updateSavingProduct(product.id, "maturesAt", e.target.value)}/>
+                          <input type="date" min={product.startedAt||"2000-01-01"} max="2100-12-31" value={product.maturesAt} onChange={e => updateSavingProduct(product.id, "maturesAt", e.target.value)}/>
                         </label>
                       </div>
                     </div>
@@ -412,7 +400,7 @@ export default function PlanPrototype({ clientId, initialState, onSaved }: {
 
       {error && <div className="pp-error">{error}</div>}
       <footer className="pp-footer">
-        <button className="pp-primary" disabled={saving || !canContinue} onClick={() => step < 3 ? setStep(v => v + 1) : savePlan()}>
+        <button className="pp-primary" disabled={saving || !canContinue} onClick={() => { if(step<3){setError("");setStep(v=>v+1)}else savePlan() }}>
           {saving ? "플랜 저장 중" : buttonLabel} {!saving && <ChevronRight size={18}/>}
         </button>
       </footer>

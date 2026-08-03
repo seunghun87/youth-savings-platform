@@ -28,9 +28,10 @@ router.get('/', publicReadLimiter, async (req, res, next) => {
     const personalIncome = integer(req.query.income, '연소득', { min: 0, nullable: true });
     const incomeBracket = integer(req.query.bracket, '소득분위', { min: 1, max: 10, nullable: true });
     const keyword = optionalString(req.query.keyword, '검색어', 100);
+    const city = optionalString(req.query.city, '거주 지역', 100);
     const limit = integer(req.query.limit, '조회 개수', { min: 1, max: MAX_LIMIT, nullable: true }) ?? DEFAULT_LIMIT;
-    const policies = await listYouthPolicies({ age, personalIncome, incomeBracket, keyword, limit });
-    res.json(policies);
+    const result = await listYouthPolicies({ age, personalIncome, incomeBracket, keyword, limit, city });
+    res.json(result);
   } catch (err) {
     next(err);
   }

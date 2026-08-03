@@ -87,6 +87,12 @@ function toIncomeLimit(value) {
   return Number.isFinite(n) && n > 0 ? n : null;
 }
 
+function normalizeCategory(value) {
+  const text = toText(value);
+  if (!text) return null;
+  return [...new Set(text.split(',').map(item => item.trim()).filter(Boolean))].join(', ') || null;
+}
+
 function buildPolicies(rawList) {
   return rawList
     .filter(p => p.plcyNo && p.plcyNm)
@@ -105,9 +111,10 @@ function buildPolicies(rawList) {
       eligibility_text: toText(p.addAplyQlfcCndCn),
       // 참여 제한 대상(자격요건과 반대 개념: 배제 조건)
       exclusion_text: toText(p.ptcpPrpTrgtCn),
-      category_large: toText(p.lclsfNm),
-      category_medium: toText(p.mclsfNm),
+      category_large: normalizeCategory(p.lclsfNm),
+      category_medium: normalizeCategory(p.mclsfNm),
       keywords: toText(p.plcyKywdNm),
+      zip_cd: toText(p.zipCd),
       supervising_org: toText(p.sprvsnInstCdNm),
       operating_org: toText(p.operInstCdNm),
       apply_period: [toText(p.bizPrdBgngYmd), toText(p.bizPrdEndYmd)].filter(Boolean).join('~') || toText(p.bizPrdEtcCn),
@@ -238,6 +245,37 @@ async function getCachedPolicies() {
   return policyCacheLoading;
 }
 
+const SIDO_CODE_BY_NAME = {
+  '서울특별시':'11','서울':'11','부산광역시':'26','부산':'26','대구광역시':'27','대구':'27',
+  '인천광역시':'28','인천':'28','광주광역시':'29','광주':'29','대전광역시':'30','대전':'30',
+  '울산광역시':'31','울산':'31','세종특별자치시':'36','세종':'36','경기도':'41','경기':'41',
+  '강원특별자치도':'51','강원도':'51','강원':'51','충청북도':'43','충북':'43','충청남도':'44','충남':'44',
+  '전북특별자치도':'52','전라북도':'52','전북':'52','전라남도':'46','전남':'46',
+  '경상북도':'47','경북':'47','경상남도':'48','경남':'48','제주특별자치도':'50','제주':'50',
+};
+const SIDO_NAMES_BY_LENGTH = Object.keys(SIDO_CODE_BY_NAME).sort((a,b)=>b.length-a.length);
+
+function sidoCodeFromCity(city) {
+  if (!city) return null;
+  const name = SIDO_NAMES_BY_LENGTH.find(candidate => city.includes(candidate));
+  return name ? SIDO_CODE_BY_NAME[name] : null;
+}
+
+function matchesRegion(policy, sidoCode) {
+  if (!sidoCode || !policy.zip_cd) return true;
+  return policy.zip_cd.split(',').some(code => code.trim().startsWith(sidoCode));
+}
+
+function dedupeByLatestAnnouncement(list) {
+  const latestByKey = new Map();
+  for (const policy of list) {
+    const key = `${policy.name}||${policy.operating_org ?? ''}`;
+    const previous = latestByKey.get(key);
+    if (!previous || String(policy.plcy_no ?? '') > String(previous.plcy_no ?? '')) latestByKey.set(key, policy);
+  }
+  return [...latestByKey.values()];
+}
+
 const STATUS_ORDER = { '충족': 0, '확인 필요': 1, '미충족': 2 };
 
 // 정렬 우선순위: ① 충족 > 확인 필요 > 미충족
@@ -249,13 +287,15 @@ function comparePolicies(a, b) {
   return spanA - spanB;
 }
 
-async function listYouthPolicies({ age, keyword, personalIncome, incomeBracket, limit } = {}) {
+async function listYouthPolicies({ age, keyword, personalIncome, incomeBracket, limit, city } = {}) {
   const data = await getCachedPolicies();
+  const sidoCode = sidoCodeFromCity(city);
 
   // 자격 미달(미충족) 정책도 걸러내지 않고 사유와 함께 그대로 포함한다. 검색어만 필터링.
-  const matched = data.filter(p =>
-    !keyword || p.name.includes(keyword) || (p.keywords && p.keywords.includes(keyword))
-  );
+  const matched = dedupeByLatestAnnouncement(data.filter(p =>
+    (!keyword || p.name.includes(keyword) || (p.keywords && p.keywords.includes(keyword))) &&
+    matchesRegion(p, sidoCode)
+  ));
 
   // age/personalIncome 둘 다 없으면(사용자 컨텍스트 없이 목록만 조회) 판정 자체가 의미 없어 status를 null로 둔다
   const hasUserContext = age != null || personalIncome != null;
@@ -269,7 +309,12 @@ async function listYouthPolicies({ age, keyword, personalIncome, incomeBracket, 
   if (hasUserContext) judged.sort(comparePolicies);
 
   // 정책이 수천 건이라 전량을 그대로 내려보내면 응답이 수 MB가 된다.
-  return limit ? judged.slice(0, limit) : judged;
+  const eligibleTotal = hasUserContext ? judged.filter(policy => policy.status === '충족').length : 0;
+  return {
+    items: limit ? judged.slice(0, limit) : judged,
+    total: judged.length,
+    eligibleTotal,
+  };
 }
 
 module.exports = { syncYouthPolicies, listYouthPolicies, invalidatePolicyCache };

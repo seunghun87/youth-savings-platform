@@ -193,6 +193,16 @@ export async function setSavedProduct(clientId:string, productId:string, saved:b
   catch(e){if(!(e instanceof TypeError))throw e;const state=readLocalState(clientId);state.saved_product_ids=saved?Array.from(new Set([...state.saved_product_ids,productId])):state.saved_product_ids.filter(id=>id!==productId);writeLocalState(state);return {saved};}
 }
 
+/** 사용자 계정과 연결된 프로필·플랜·납입·저장·가입 데이터를 함께 삭제한다. */
+export async function deleteUserAccount(clientId:string) {
+  const res = await authFetch(`${API_BASE_URL}/api/user-state/${clientId}/account`, { method:"DELETE" });
+  if (!res.ok) {
+    const body = await res.json().catch(()=>null);
+    throw new Error(body?.error||"회원탈퇴를 처리하지 못했습니다");
+  }
+  window.localStorage.removeItem(localStateKey(clientId));
+}
+
 /**
  * 백엔드(/api/recommend) 호출. 백엔드가 꺼져 있거나 Supabase 키가
  * 아직 설정되지 않은 경우 null을 반환하므로, 호출부는 항상 로컬 목업
@@ -277,6 +287,7 @@ export interface YouthPolicy {
   category_large: string | null;
   category_medium: string | null;
   keywords: string | null;
+  zip_cd: string | null;
   supervising_org: string | null;
   operating_org: string | null;
   apply_period: string | null;
@@ -286,20 +297,27 @@ export interface YouthPolicy {
   reason: string | null;
 }
 
+export interface YouthPolicyListResult {
+  items: YouthPolicy[];
+  total: number;
+  eligibleTotal: number;
+}
+
 /**
  * 백엔드(/api/youth-policy) 호출. 나이·연소득(만원)을 넘기면 자격 판정과 미충족 사유가
  * 함께 내려오고, 충족 > 확인 필요 > 미충족 순으로 정렬된다.
  * 실패 시 null 반환 — 호출부는 에러 상태로 처리.
  */
 export async function fetchYouthPolicies(
-  params: { age?: number; income?: number; bracket?: number; keyword?: string; limit?: number } = {},
-): Promise<YouthPolicy[] | null> {
+  params: { age?: number; income?: number; bracket?: number; keyword?: string; limit?: number; city?: string } = {},
+): Promise<YouthPolicyListResult | null> {
   const query = new URLSearchParams();
   if (params.age != null) query.set("age", String(params.age));
   if (params.income != null) query.set("income", String(params.income));
   if (params.bracket != null) query.set("bracket", String(params.bracket));
   if (params.keyword) query.set("keyword", params.keyword);
   if (params.limit != null) query.set("limit", String(params.limit));
+  if (params.city) query.set("city", params.city);
 
   try {
     const res = await fetch(`${API_BASE_URL}/api/youth-policy?${query.toString()}`);

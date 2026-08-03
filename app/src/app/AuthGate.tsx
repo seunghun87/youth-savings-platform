@@ -20,6 +20,8 @@ export default function AuthGate({
   const [loading, setLoading] = useState(true);
   const [signingIn, setSigningIn] = useState(false);
   const [error, setError] = useState("");
+  const [requiredConsent, setRequiredConsent] = useState(false);
+  const [optionalConsent, setOptionalConsent] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -70,6 +72,10 @@ export default function AuthGate({
   }, []);
 
   const signIn = async () => {
+    if (!requiredConsent) {
+      setError("서비스 이용과 개인정보 수집·이용 필수 항목에 동의해주세요.");
+      return;
+    }
     if (!isSupabaseConfigured) {
       setError("VITE_SUPABASE_URL과 VITE_SUPABASE_ANON_KEY를 설정해주세요.");
       return;
@@ -114,12 +120,23 @@ export default function AuthGate({
         <div style={{ width: 58, height: 58, display: "grid", placeItems: "center", borderRadius: 18, background: "#E6F0E6", fontSize: 28 }}>🌱</div>
         <h1 style={{ margin: "24px 0 10px", color: "#1B1B18", fontSize: 29, lineHeight: 1.25 }}>청년의 내일을<br />함께 모아요</h1>
         <p style={{ margin: "0 0 34px", color: "#77756B", fontSize: 14, lineHeight: 1.65 }}>Google 계정으로 로그인하고 내 저축 플랜과 맞춤 혜택을 안전하게 관리하세요.</p>
+        <div style={{ marginBottom:16, padding:"14px 15px", border:"1px solid #E4E2DB", borderRadius:14, background:"#FAFAF7" }}>
+          <label style={{ display:"flex", gap:9, alignItems:"flex-start", color:"#34342F", fontSize:12, lineHeight:1.45 }}>
+            <input type="checkbox" checked={requiredConsent} onChange={e=>setRequiredConsent(e.target.checked)} style={{ marginTop:2, accentColor:"#2E7D32" }}/>
+            <span><b>[필수]</b> 서비스 이용 및 개인정보 수집·이용 동의<br/><small style={{color:"#858278"}}>Google 계정 식별자와 이메일, 입력한 자산·목표 정보를 서비스 제공에 사용합니다.</small></span>
+          </label>
+          <label style={{ display:"flex", gap:9, alignItems:"flex-start", marginTop:12, color:"#34342F", fontSize:12, lineHeight:1.45 }}>
+            <input type="checkbox" checked={optionalConsent} onChange={e=>setOptionalConsent(e.target.checked)} style={{ marginTop:2, accentColor:"#2E7D32" }}/>
+            <span><b>[선택]</b> 금융상품·정책 정보 업데이트 알림 동의</span>
+          </label>
+          <p style={{margin:"10px 0 0",color:"#98958B",fontSize:10,lineHeight:1.45}}>프로필 사진은 화면 표시에만 사용하며 앱 데이터베이스에 별도로 저장하지 않습니다. 선택 동의를 하지 않아도 서비스를 이용할 수 있습니다.</p>
+        </div>
         <button onClick={signIn} disabled={signingIn} style={{ width: "100%", minHeight: 54, display: "flex", alignItems: "center", justifyContent: "center", gap: 12, border: "1px solid #D9D7D0", borderRadius: 14, background: "#fff", color: "#252522", fontSize: 15, fontWeight: 700, cursor: "pointer" }}>
           {signingIn ? <LoaderCircle size={21} className="auth-spinner" /> : <img src={GOOGLE_LOGO} width="22" height="22" alt="" />}
           Google로 계속하기
         </button>
         {error && <p role="alert" style={{ margin: "14px 0 0", color: "#B42318", fontSize: 12 }}>{error}</p>}
-        <p style={{ margin: "22px 4px 0", color: "#AAA79D", fontSize: 11, lineHeight: 1.5, textAlign: "center" }}>로그인하면 서비스 이용약관과 개인정보 처리방침에 동의하게 됩니다.</p>
+        <p style={{ margin: "22px 4px 0", color: "#AAA79D", fontSize: 11, lineHeight: 1.5, textAlign: "center" }}>수집 항목과 보유기간은 개인정보 처리방침에서 확인할 수 있습니다.</p>
       </section>
     </main>
   );
