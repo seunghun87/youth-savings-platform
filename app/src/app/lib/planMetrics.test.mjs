@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { accountProgressPercent, accountProjectedValue, calculatePlanMetrics, estimatedAccountAfterTaxInterest, estimatedAfterTaxInterest, monthDiff, remainingPaymentPrincipal } from "./planMetrics.mjs";
+import { accountProgressPercent, accountProjectedValue, afterTaxInterestFromGross, calculatePlanMetrics, estimatedAccountAfterTaxInterest, estimatedAfterTaxInterest, monthDiff, remainingPaymentPrincipal } from "./planMetrics.mjs";
 
 const account = (changes={}) => ({ status:"가입완료", monthly:300000, paid:300000, remainingMonths:12, interest:100000, support:0, ...changes });
 const scenarios = [
@@ -42,3 +42,4 @@ test("월 20만 원·12개월·연 6% 적금의 세후 만기액은 2,465,988원
   assert.equal(afterTaxInterest,65988);
   assert.equal(principal+afterTaxInterest,2465988);
 });
+test("세전 이자 78,000원의 세금과 세후 이자를 원 단위로 계산한다",()=>assert.deepEqual(afterTaxInterestFromGross(78000),{pretaxInterest:78000,tax:12012,afterTaxInterest:65988}));

@@ -10,6 +10,7 @@ export interface PlanMetricAccount {
   [key: string]: unknown;
 }
 export function monthDiff(from: string, to: string): number;
+export function afterTaxInterestFromGross(grossInterest:unknown,taxRate?:unknown): { pretaxInterest:number;tax:number;afterTaxInterest:number };
 export function estimatedAfterTaxInterest(monthly: unknown, annualRate: unknown, remainingMonths: unknown): number;
 export function remainingPaymentPrincipal(monthly: unknown, paidThisMonth: unknown, remainingMonths: unknown): number;
 export function estimatedAccountAfterTaxInterest(input: { balance:unknown; monthly:unknown; paidThisMonth:unknown; annualRate:unknown; remainingMonths:unknown }): number;

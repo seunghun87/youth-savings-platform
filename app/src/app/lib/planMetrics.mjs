@@ -1,5 +1,11 @@
 export const ACTIVE_STATUSES = new Set(["신청중", "신청완료", "가입완료"]);
 
+export function afterTaxInterestFromGross(grossInterest, taxRate = 0.154) {
+  const pretaxInterest = Math.max(0, Math.floor(Number(grossInterest) || 0));
+  const tax = Math.floor(pretaxInterest * Math.max(0, Number(taxRate) || 0));
+  return { pretaxInterest, tax, afterTaxInterest: pretaxInterest - tax };
+}
+
 export function monthDiff(from, to) {
   if (!from || !to) return 0;
   const [fromYear, fromMonth] = from.slice(0, 7).split("-").map(Number);
@@ -12,7 +18,8 @@ export function estimatedAfterTaxInterest(monthly, annualRate, remainingMonths) 
   const payment = Math.max(0, Number(monthly) || 0);
   const rate = Math.max(0, Number(annualRate) || 0);
   const months = Math.max(0, Number(remainingMonths) || 0);
-  return Math.floor(payment * (rate / 100 / 12) * (months * (months + 1) / 2) * (1 - 0.154));
+  const gross = payment * (rate / 100 / 12) * (months * (months + 1) / 2);
+  return afterTaxInterestFromGross(gross).afterTaxInterest;
 }
 
 export function remainingPaymentPrincipal(monthly, paidThisMonth, remainingMonths) {
@@ -38,7 +45,7 @@ export function estimatedAccountAfterTaxInterest({ balance, monthly, paidThisMon
   const gross = principal * rate * futureMonths
     + outstanding * rate * futureMonths
     + payment * rate * (laterPaymentMonths * (laterPaymentMonths + 1) / 2);
-  return Math.floor(gross * (1 - 0.154));
+  return afterTaxInterestFromGross(gross).afterTaxInterest;
 }
 
 export function accountProjectedValue(account) {

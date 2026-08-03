@@ -12,6 +12,16 @@ const {
 const { safeEqual } = require('../src/middleware/requireSyncSecret');
 const { calculateMaturityAmount } = require('../src/services/calculationService');
 
+test('월 20만 원을 12개월간 연 6%로 납입하면 세후 2,465,988원이다', () => {
+  assert.deepEqual(calculateMaturityAmount(200000, 12, 6), {
+    principal: 2400000,
+    pretaxInterest: 78000,
+    tax: 12012,
+    aftertaxInterest: 65988,
+    maturityAmount: 2465988,
+  });
+});
+
 test('문자열 입력의 공백을 제거하고 길이를 제한한다', () => {
   assert.equal(requiredString('  청년도약계좌  ', '상품명', 20), '청년도약계좌');
   assert.throws(() => requiredString('   ', '상품명'), { message: '상품명을(를) 입력해주세요' });

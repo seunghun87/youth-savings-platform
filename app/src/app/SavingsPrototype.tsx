@@ -51,6 +51,7 @@ import {
 import PlanPrototype from "./PlanPrototype";
 import SavingsPlanV2Prototype from "./SavingsPlanV2Prototype";
 import { previousSeoulMonthKey, seoulDateKey, seoulMonthKey } from "./lib/dateKeys";
+import { estimatedAfterTaxInterest } from "./lib/planMetrics.mjs";
 
 type Tab = "home" | "find" | "plan" | "benefits" | "my";
 type ProductView = {
@@ -111,7 +112,7 @@ const contributionLabel={fixed:"정액적립식",flexible:"자유적립식",step
 const frequencyLabel={monthly:"월",weekly:"주",daily:"일"} as const;
 const segmentColors=["#72d99b","#ffd27a","#87b8ff","#d9a7ff","#ff9f91"];
 const monthsUntil=(date:string|null)=>{if(!date)return 12;const end=new Date(date),now=new Date();return Math.max(0,(end.getFullYear()-now.getFullYear())*12+end.getMonth()-now.getMonth())};
-const expectedInterest=(monthly:number,months:number,annualRate:number)=>Math.max(0,Math.floor(monthly*(annualRate/100/12)*(months*(months+1)/2)*(1-.154)));
+const expectedInterest=(monthly:number,months:number,annualRate:number)=>estimatedAfterTaxInterest(monthly,annualRate,months);
 
 function Header({ eyebrow, title, onNotifications }: { eyebrow: string; title: string; onNotifications:()=>void }) {
   return (

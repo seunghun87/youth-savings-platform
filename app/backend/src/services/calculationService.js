@@ -4,13 +4,15 @@ const TAX_RATE = 0.154; // 이자소득세 15.4%
 function calculateMaturityAmount(monthlyAmount, periodMonths, annualRate, taxRate = TAX_RATE) {
   const principal = monthlyAmount * periodMonths;
   const monthlyRate = annualRate / 100 / 12;
-  const pretaxInterest = monthlyAmount * monthlyRate * ((periodMonths * (periodMonths + 1)) / 2);
-  const aftertaxInterest = pretaxInterest * (1 - taxRate);
+  const pretaxInterest = Math.floor(monthlyAmount * monthlyRate * ((periodMonths * (periodMonths + 1)) / 2));
+  const tax = Math.floor(pretaxInterest * taxRate);
+  const aftertaxInterest = pretaxInterest - tax;
   return {
     principal,
-    pretaxInterest: Math.floor(pretaxInterest),
-    aftertaxInterest: Math.floor(aftertaxInterest),
-    maturityAmount: Math.floor(principal + aftertaxInterest),
+    pretaxInterest,
+    tax,
+    aftertaxInterest,
+    maturityAmount: principal + aftertaxInterest,
   };
 }
 
