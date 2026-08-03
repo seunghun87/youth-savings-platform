@@ -303,15 +303,28 @@ function comparePolicies(a, b) {
   return spanA - spanB;
 }
 
+// 온통청년 API는 같은 지자체가 같은 정책을 재공고할 때마다 새 plcy_no로 다시 올리는 경우가 있어
+// (이름·운영기관·지역은 동일, 신청기간만 갱신) 화면에 완전히 같은 카드가 2~3번 뜨는 문제가 있었다.
+// 이름+운영기관이 같으면 plcy_no가 가장 큰(= 등록 날짜가 앞부분에 있는 번호 체계라 가장 최근인) 것만 남긴다.
+function dedupeByLatestAnnouncement(list) {
+  const latestByKey = new Map();
+  for (const p of list) {
+    const key = `${p.name}||${p.operating_org ?? ''}`;
+    const prev = latestByKey.get(key);
+    if (!prev || p.plcy_no > prev.plcy_no) latestByKey.set(key, p);
+  }
+  return [...latestByKey.values()];
+}
+
 async function listYouthPolicies({ age, keyword, personalIncome, incomeBracket, limit, city } = {}) {
   const data = await getCachedPolicies();
   const sidoCode = sidoCodeFromCity(city);
 
   // 자격 미달(미충족) 정책도 걸러내지 않고 사유와 함께 그대로 포함한다. 검색어·지역만 필터링.
-  const matched = data.filter(p =>
+  const matched = dedupeByLatestAnnouncement(data.filter(p =>
     (!keyword || p.name.includes(keyword) || (p.keywords && p.keywords.includes(keyword))) &&
     matchesRegion(p, sidoCode)
-  );
+  ));
 
   // age/personalIncome 둘 다 없으면(사용자 컨텍스트 없이 목록만 조회) 판정 자체가 의미 없어 status를 null로 둔다
   const hasUserContext = age != null || personalIncome != null;

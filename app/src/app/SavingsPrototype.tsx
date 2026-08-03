@@ -364,7 +364,6 @@ function FindPage({
           <h2>{loading ? "상품을 불러오는 중" : `적금 ${shown.length}개`}</h2>
           <span>{mode==="policy"?"정부 정책 적금만 표시하고 있어요":mode==="market"?"시중은행 적금만 표시하고 있어요":mode==="high"?"최고 금리가 높은 순서예요":mode==="short"?"12개월 이내 가입 상품이에요":"추천 순서로 모든 상품을 보여드려요"}</span>
         </div>
-        <SlidersHorizontal size={18} />
       </div>
       <div className="sp-list">
         {loading&&[0,1,2].map(x=><div className="sp-product-skeleton" key={x} aria-hidden="true"><i/><b/><span/><span/></div>)}
