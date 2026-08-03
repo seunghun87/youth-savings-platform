@@ -69,6 +69,9 @@ type ProductView = {
   minMonthly:number;
   maxMonthly:number|null;
   installmentStep:number|null;
+  minAge?:number;
+  maxAge?:number;
+  incomeLimit?:number|null;
   /** 청년 개인이 가입할 수 없는 상품일 때 그 조건(가입대상 원문). 가입 가능하면 null */
   restriction?:string|null;
   source?:"manual"|"finlife";
@@ -340,9 +343,11 @@ function FindPage({
 }) {
   const [q, setQ] = useState("");
   const [showRestricted,setShowRestricted]=useState(false);
+  const [eligibleOnly,setEligibleOnly]=useState(false);
   const [mode,setMode]=useState<"all"|"policy"|"market"|"high"|"short">("all");
   const normalizedQuery=q.trim().toLocaleLowerCase("ko-KR");
-  const shown = items.filter((p) => `${p.name} ${p.org}`.toLocaleLowerCase("ko-KR").includes(normalizedQuery)).filter(p=>mode==="policy"?p.type==="정책":mode==="market"?p.type==="시중":mode==="short"?p.minPeriod<=12:true).sort((a,b)=>mode==="short"?a.minPeriod-b.minPeriod:mode==="high"?b.rate-a.rate:0);
+  const meetsProfile=(p:ProductView)=>(p.minAge==null||state.profile.age>=p.minAge)&&(p.maxAge==null||state.profile.age<=p.maxAge)&&(p.incomeLimit==null||state.profile.annual_income<=p.incomeLimit);
+  const shown = items.filter((p) => `${p.name} ${p.org}`.toLocaleLowerCase("ko-KR").includes(normalizedQuery)).filter(p=>!eligibleOnly||meetsProfile(p)).filter(p=>mode==="policy"?p.type==="정책":mode==="market"?p.type==="시중":mode==="short"?p.minPeriod<=12:true).sort((a,b)=>mode==="short"?a.minPeriod-b.minPeriod:mode==="high"?b.rate-a.rate:0);
   const filters=[{id:"all",label:"전체"},{id:"policy",label:"정부지원"},{id:"market",label:"시중은행"},{id:"high",label:"높은 금리순"},{id:"short",label:"단기 저축"}] as const;
   return (
     <>
@@ -357,14 +362,24 @@ function FindPage({
           placeholder="적금 상품을 검색해보세요"
         />
       </label>
+      <button
+        type="button"
+        className={`sp-eligible-toggle ${eligibleOnly?"on":""}`}
+        aria-pressed={eligibleOnly}
+        onClick={()=>setEligibleOnly(value=>!value)}
+      >
+        <ShieldCheck size={18}/>
+        <span><b>자격 충족 상품만 보기</b><small>내 나이와 소득 조건에 맞는 적금만 표시</small></span>
+        <i>{eligibleOnly?"ON":"OFF"}</i>
+      </button>
+      <div className="sp-chips sp-eligibility-filter">
+        {filters.map(f=><button key={f.id} className={mode===f.id?"on":""} onClick={()=>setMode(f.id)}>{f.label}</button>)}
+      </div>
       <AllocationCard state={state} />
       <aside className="sp-product-disclosure">
         <ShieldCheck size={17}/>
         <p><b>상품 성격을 구분해 확인하세요</b><span>정부지원 상품은 정책 운영기관 정보를, 시중은행 상품은 금융감독원 공시 정보를 바탕으로 표시합니다. 현재 유료 광고·제휴 상품은 없습니다.</span></p>
       </aside>
-      <div className="sp-chips">
-        {filters.map(f=><button key={f.id} className={mode===f.id?"on":""} onClick={()=>setMode(f.id)}>{f.label}</button>)}
-      </div>
       <div className="sp-title sp-result">
         <div>
           <h2>{loading ? "상품을 불러오는 중" : `적금 ${shown.length}개`}</h2>
@@ -492,6 +507,7 @@ const POLICY_ICONS: Record<string, typeof Landmark> = {
 
 function BenefitsPage({profile,onNotifications,onOpen}:{profile:UserSavingsState["profile"];onNotifications:()=>void;onOpen:(policy:YouthPolicy)=>void}) {
   const [category,setCategory]=useState("전체");
+  const [eligibleOnly,setEligibleOnly]=useState(false);
   const [policies,setPolicies]=useState<YouthPolicy[]|null>(null);
   const [eligibleTotal,setEligibleTotal]=useState(0);
   const [loading,setLoading]=useState(true);
@@ -509,7 +525,7 @@ function BenefitsPage({profile,onNotifications,onOpen}:{profile:UserSavingsState
 
   const policyCategories=(policy:YouthPolicy)=>policy.category_large?policy.category_large.split(", "):[];
   const categories=["전체",...Array.from(new Set((policies??[]).flatMap(policyCategories)))];
-  const shown=(policies??[]).filter(policy=>category==="전체"||policyCategories(policy).includes(category));
+  const shown=(policies??[]).filter(policy=>(category==="전체"||policyCategories(policy).includes(category))&&(!eligibleOnly||policy.status==="충족"));
 
   return (
     <>
@@ -518,6 +534,19 @@ function BenefitsPage({profile,onNotifications,onOpen}:{profile:UserSavingsState
         title="추가 혜택"
         onNotifications={onNotifications}
       />
+      <button
+        type="button"
+        className={`sp-eligible-toggle ${eligibleOnly?"on":""}`}
+        aria-pressed={eligibleOnly}
+        onClick={()=>setEligibleOnly(value=>!value)}
+      >
+        <ShieldCheck size={18}/>
+        <span><b>자격 충족 정책만 보기</b><small>내 나이·소득·거주지역 조건에 맞는 정책만 표시</small></span>
+        <i>{eligibleOnly?"ON":"OFF"}</i>
+      </button>
+      <div className="sp-chips sp-eligibility-filter">
+        {categories.map(x=><button key={x} className={category===x?"on":""} onClick={()=>setCategory(x)}>{x}</button>)}
+      </div>
       {loading ? (
         <div className="sp-benefits sp-benefits-loading" aria-busy="true" aria-label="청년정책 불러오는 중">
           <article /><article /><article />
@@ -533,9 +562,7 @@ function BenefitsPage({profile,onNotifications,onOpen}:{profile:UserSavingsState
           {eligibleTotal>0 && (
             <p className="sp-benefits-summary">거주 지역과 조건에 맞는 정책이 <b>{eligibleTotal}건</b> 있어요.</p>
           )}
-          <div className="sp-chips">
-            {categories.map(x=><button key={x} className={category===x?"on":""} onClick={()=>setCategory(x)}>{x}</button>)}
-          </div>
+          {eligibleOnly&&shown.length===0&&<p className="sp-benefits-empty">현재 조건과 선택한 분류를 모두 충족하는 정책이 없어요.</p>}
           <div className="sp-benefits">
             {shown.map(p=>{
               const Icon=POLICY_ICONS[policyCategories(p)[0]??""]??Gift;
@@ -641,8 +668,8 @@ function TerminationPreview({state,product,onClose,onConfirm}:{state:UserSavings
   return <div className="sp-modal-backdrop" onClick={onClose}><section className="sp-modal sp-termination" role="dialog" aria-modal="true" aria-labelledby="termination-title" onClick={e=>e.stopPropagation()}><button className="sp-modal-close" onClick={onClose} aria-label="닫기"><X size={20}/></button><small>해지 전 영향 확인</small><h2 id="termination-title">{product.product_name}</h2><div className="sp-impact-compare"><div><span>목표 예상 기간</span><b>{Math.floor(beforeMonths/12)}년 {beforeMonths%12}개월</b><ChevronRight size={16}/><strong>{afterMonths===null?"계산 불가":`${Math.floor(afterMonths/12)}년 ${afterMonths%12}개월`}</strong><em>{afterMonths===null?"월 저축액을 다시 설정해야 해요":`약 ${Math.max(0,afterMonths-beforeMonths)}개월 늦어져요`}</em></div><div><span>예상 세후 이자</span><b>{Math.round(totalInterest/10000).toLocaleString()}만 원</b><ChevronRight size={16}/><strong>{Math.round((totalInterest-lostInterest)/10000).toLocaleString()}만 원</strong><em>{Math.round(lostInterest/10000).toLocaleString()}만 원 감소 예상</em></div></div><p className="sp-impact-note">지금까지 납입한 원금 {principal.toLocaleString()}원은 목표 기여도에 남고, 앞으로의 납입과 만기 이자만 전망에서 제외돼요.</p><label>실제 중도해지 수령액<input inputMode="numeric" value={payout} onChange={e=>setPayout(e.target.value.replace(/[^0-9]/g,""))}/><span>은행에서 안내받은 세후 수령액으로 수정할 수 있어요.</span></label><label>해지 사유<select value={reason} onChange={e=>setReason(e.target.value)}><option>자금이 필요해서</option><option>금리가 더 좋은 상품으로 이동</option><option>월 납입이 부담돼서</option><option>기타</option></select></label><button className="sp-danger-button" disabled={saving||!payout} onClick={submit}>{saving?"반영 중...":"중도해지로 반영"}</button><button className="sp-modal-secondary" onClick={onClose}>계속 유지하기</button></section></div>
 }
 
-export default function SavingsPrototype({user,onSignOut}:{user:User;onSignOut:()=>void}) {
-  const [tab, setTab] = useState<Tab>("home");
+export default function SavingsPrototype({user,onSignOut,initialTab="home"}:{user:User;onSignOut:()=>void;initialTab?:Tab}) {
+  const [tab, setTab] = useState<Tab>(initialTab);
   const [items, setItems] = useState(products);
   // 청년이 가입할 수 없는 조건이 붙은 상품. "그 외의 적금" 코너에 따로 소개한다
   const [restrictedItems, setRestrictedItems] = useState<ProductView[]>([]);
@@ -689,6 +716,9 @@ export default function SavingsPrototype({user,onSignOut}:{user:User;onSignOut:(
           minMonthly:Number(p.min_monthly_amount??1)*10000,
           maxMonthly:p.monthly_limit==null?null:Number(p.monthly_limit)*10000,
           installmentStep:p.installment_step_amount==null?null:Number(p.installment_step_amount)*10000,
+          minAge:p.min_age,
+          maxAge:p.max_age,
+          incomeLimit:p.income_limit,
           restriction:p.youth_joinable?null:(p.join_member||"별도 가입 조건이 있어요"),
           source:p.source,
         }));

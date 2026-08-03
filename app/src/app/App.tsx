@@ -1058,6 +1058,8 @@ function AppContent({ session }: { session: Session }) {
       return <DesignPreview />;
     case "legacy":
       return <LegacyAppFlow />;
+    case "find-filter":
+      return <SavingsPrototype user={session.user} onSignOut={signOut} initialTab="find" />;
     default:
       return <SavingsPrototype user={session.user} onSignOut={signOut} />;
   }
