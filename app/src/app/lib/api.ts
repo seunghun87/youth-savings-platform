@@ -193,6 +193,18 @@ export async function setSavedProduct(clientId:string, productId:string, saved:b
   catch(e){if(!(e instanceof TypeError))throw e;const state=readLocalState(clientId);state.saved_product_ids=saved?Array.from(new Set([...state.saved_product_ids,productId])):state.saved_product_ids.filter(id=>id!==productId);writeLocalState(state);return {saved};}
 }
 
+export async function deleteEnrolledProduct(clientId:string, productId:string) {
+  try {
+    const res=await authFetch(`${API_BASE_URL}/api/user-state/${clientId}/enrolled-products/${encodeURIComponent(productId)}`,{method:"DELETE"});
+    if(!res.ok)throw new Error("적금 정보를 삭제하지 못했습니다");
+  } catch(e) {
+    if(!(e instanceof TypeError))throw e;
+    const state=readLocalState(clientId);
+    state.enrolled_products=state.enrolled_products.filter(product=>product.product_id!==productId);
+    writeLocalState(state);
+  }
+}
+
 /** 사용자 계정과 연결된 프로필·플랜·납입·저장·가입 데이터를 함께 삭제한다. */
 export async function deleteUserAccount(clientId:string) {
   const res = await authFetch(`${API_BASE_URL}/api/user-state/${clientId}/account`, { method:"DELETE" });

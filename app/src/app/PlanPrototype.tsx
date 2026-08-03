@@ -5,6 +5,7 @@ import {
 } from "lucide-react";
 import {
   addEnrolledProduct,
+  deleteEnrolledProduct,
   fetchRecommendations,
   updateSavingsPlan,
   updateUserProfile,
@@ -153,6 +154,10 @@ export default function PlanPrototype({ clientId, initialState, onSaved }: {
           installment_step_amount:existing?.installment_step_amount ?? undefined,
         });
       }));
+      const retainedIds=new Set(entered.map(product=>product.productId).filter((id):id is string=>Boolean(id)));
+      await Promise.all((initialState?.enrolled_products??[])
+        .filter(product=>!retainedIds.has(product.product_id))
+        .map(product=>deleteEnrolledProduct(clientId,product.product_id)));
       await updateUserProfile(clientId, {
         name:name.trim(), age, city, annual_income:incomeAmount, is_homeowner:isHomeowner, income_reported:incomeReported, onboarding_completed:true,
       });

@@ -20,6 +20,7 @@ import "./savings-plan-v2-prototype.css";
 import { addEnrolledProduct, fetchUserSavingsState, updateEnrolledProduct, updateSavingsPlan, type UserSavingsState } from "./lib/api";
 import { accountProgressPercent, calculatePlanMetrics, estimatedAfterTaxInterest, monthDiff } from "./lib/planMetrics.mjs";
 import PlanPrototype from "./PlanPrototype";
+import { seoulDateKey, seoulMonthKey } from "./lib/dateKeys";
 
 type View = "all" | "now" | "assets" | "accounts" | "future";
 type Scenario = "keep" | "cancel" | "lower";
@@ -96,7 +97,8 @@ export default function SavingsPlanV2Prototype({clientId,live=false,embedded=fal
     [loading,setLoading]=useState(live&&!initialState);
   const reload=async()=>{if(!clientId){setLoading(false);return}const next=await fetchUserSavingsState(clientId);setUserState(next);await onChanged?.();setLoading(false)};
   useEffect(()=>{if(initialState){setUserState(initialState);setLoading(false)}else if(live)reload().catch(()=>setLoading(false))},[live,initialState]);
-  const currentMonth=new Date().toISOString().slice(0,7);
+  const [currentMonth,setCurrentMonth]=useState(seoulMonthKey());
+  useEffect(()=>{const timer=window.setInterval(()=>setCurrentMonth(seoulMonthKey()),60_000);return()=>window.clearInterval(timer)},[]);
   const colors=["#2f8f62","#efaa4f","#6398dc","#a77bd6"];
   const accounts=live&&userState?userState.enrolled_products.filter(x=>x.status!=="중도해지").map((p,index)=>{
     const contributions=userState.contributions.filter(x=>x.product_name===p.product_name);
@@ -124,7 +126,7 @@ export default function SavingsPlanV2Prototype({clientId,live=false,embedded=fal
   if(loading)return <div className="pv2-shell"><main><section className="pv2-loading">저축 플랜을 불러오는 중...</section></main></div>;
   if(live&&!userState?.profile.onboarding_completed)return <PlanPrototype clientId={clientId} onSaved={reload}/>;
   const monthLabel=new Intl.DateTimeFormat("ko-KR",{month:"long"}).format(new Date()),monthEnd=new Date(new Date().getFullYear(),new Date().getMonth()+1,0).getDate();
-  const saveAccount=async()=>{const monthly=Number(addDraft.monthly),balance=Number(addDraft.balance);if(!clientId||!addDraft.name.trim()||!Number.isInteger(monthly)||monthly<=0||!Number.isInteger(balance)||balance<0||!addDraft.maturity)return;setSaving(true);try{const productId=`manual-${Date.now()}`;await addEnrolledProduct(clientId,{product_id:productId,product_name:addDraft.name.trim(),bank:"직접 입력",status:"가입완료",started_at:new Date().toISOString().slice(0,10),matures_at:addDraft.maturity,monthly_amount:monthly,opening_balance:balance,contribution_type:"flexible",payment_frequency:"monthly",min_amount:10000});if(balance>0&&userState)await updateSavingsPlan(clientId,{target_amount:Number(userState.plan.target_amount),monthly_target:Number(userState.plan.monthly_target),current_amount:Number(userState.plan.current_amount)+balance});await reload();setAddOpen(false);setAddDraft({name:"",balance:"",monthly:"",maturity:""})}finally{setSaving(false)}};
+  const saveAccount=async()=>{const monthly=Number(addDraft.monthly),balance=Number(addDraft.balance);if(!clientId||!addDraft.name.trim()||!Number.isInteger(monthly)||monthly<=0||!Number.isInteger(balance)||balance<0||!addDraft.maturity)return;setSaving(true);try{const productId=`manual-${Date.now()}`;await addEnrolledProduct(clientId,{product_id:productId,product_name:addDraft.name.trim(),bank:"직접 입력",status:"가입완료",started_at:seoulDateKey(),matures_at:addDraft.maturity,monthly_amount:monthly,opening_balance:balance,contribution_type:"flexible",payment_frequency:"monthly",min_amount:10000});if(balance>0&&userState)await updateSavingsPlan(clientId,{target_amount:Number(userState.plan.target_amount),monthly_target:Number(userState.plan.monthly_target),current_amount:Number(userState.plan.current_amount)+balance});await reload();setAddOpen(false);setAddDraft({name:"",balance:"",monthly:"",maturity:""})}finally{setSaving(false)}};
   const terminateAccount=async()=>{if(!cancelProductId||!live||!clientId)return;setSaving(true);try{await updateEnrolledProduct(clientId,cancelProductId,{status:"중도해지",ended_at:new Date().toISOString().slice(0,10),termination_reason:"사용자 직접 해지",termination_payout:managedAccount.balance});await reload();setCancelProductId(null)}finally{setSaving(false)}};
   return (
     <div className={`pv2-shell ${view === "all" ? "all" : ""} ${embedded?"embedded":""}`}>

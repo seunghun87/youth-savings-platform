@@ -50,6 +50,7 @@ import {
 } from "./lib/api";
 import PlanPrototype from "./PlanPrototype";
 import SavingsPlanV2Prototype from "./SavingsPlanV2Prototype";
+import { previousSeoulMonthKey, seoulDateKey, seoulMonthKey } from "./lib/dateKeys";
 
 type Tab = "home" | "find" | "plan" | "benefits" | "my";
 type ProductView = {
@@ -128,13 +129,15 @@ function Header({ eyebrow, title, onNotifications }: { eyebrow: string; title: s
 }
 
 function HomePage({state,onRecord,onQuickPay,onNotifications,onShowAll,onProduct,onBenefits}:{state:UserSavingsState|null;onRecord:()=>void;onQuickPay:(product:UserSavingsState["enrolled_products"][number])=>void;onNotifications:()=>void;onShowAll:()=>void;onProduct:(p:ProductView)=>void;onBenefits:()=>void}) {
+  const [currentMonth,setCurrentMonth]=useState(seoulMonthKey());
+  useEffect(()=>{const timer=window.setInterval(()=>setCurrentMonth(seoulMonthKey()),60_000);return()=>window.clearInterval(timer)},[]);
   const existingMonthly=(state?.enrolled_products??[]).reduce((sum,product)=>sum+Number(product.monthly_amount??0),0);
   const current=Number(state?.plan.current_amount??0), target=Number(state?.plan.target_amount??50000000), monthly=Number(state?.plan.monthly_target??700000)+existingMonthly;
   const pct=Math.min(100,Math.round(current/target*100));
-  const monthTotal=(state?.contributions??[]).filter(x=>x.contributed_at.slice(0,7)===new Date().toISOString().slice(0,7)).reduce((s,x)=>s+Number(x.amount),0);
+  const monthTotal=(state?.contributions??[]).filter(x=>x.contributed_at.slice(0,7)===currentMonth).reduce((s,x)=>s+Number(x.amount),0);
   const now=new Date();
   const monthLabel=new Intl.DateTimeFormat("ko-KR",{month:"long"}).format(now);
-  const previousMonth=new Date(now.getFullYear(),now.getMonth()-1,1).toISOString().slice(0,7);
+  const previousMonth=previousSeoulMonthKey(now);
   const previousMonthTotal=(state?.contributions??[]).filter(x=>x.contributed_at.slice(0,7)===previousMonth).reduce((s,x)=>s+Number(x.amount),0);
   const remaining=Math.max(0,target-current);
   const monthsToGoal=monthly>0?Math.ceil(remaining/monthly):null;
@@ -183,7 +186,7 @@ function HomePage({state,onRecord,onQuickPay,onNotifications,onShowAll,onProduct
         </div>
         <article className="sp-payment">
           {(state?.enrolled_products??[]).map((product)=>{
-            const paid=(state?.contributions??[]).filter(x=>x.product_name===product.product_name&&x.contributed_at.slice(0,7)===new Date().toISOString().slice(0,7)).reduce((sum,x)=>sum+Number(x.amount),0);
+            const paid=(state?.contributions??[]).filter(x=>x.product_name===product.product_name&&x.contributed_at.slice(0,7)===currentMonth).reduce((sum,x)=>sum+Number(x.amount),0);
             return <div className="sp-pay-row" key={product.id}><i className={paid>0?"done":""}>{paid>0?"✓":"·"}</i><div><b>{product.product_name}</b><span>{paid>0?"이번 달 납입 완료":`${Number(product.monthly_amount??0).toLocaleString()}원 예정`}</span></div><button className={paid>0?"sp-quick-paid":"sp-quick-pay"} disabled={paid>0} onClick={()=>onQuickPay(product)}>{paid>0?"완료 ✓":"납입 완료"}</button></div>;
           })}
           {!state?.enrolled_products?.length&&<div className="sp-empty-payment"><b>아직 추가한 적금이 없어요</b><span>적금 찾기에서 신청한 상품을 추가해주세요.</span></div>}
@@ -430,7 +433,7 @@ function PlanPage({state,onGoalEdit,onAllocationEdit,onNotifications,onFind,onTe
   const remaining=Math.max(0,Number(state.plan.target_amount)-Number(state.plan.current_amount));
   const months=Math.ceil(remaining/Math.max(1,simulated*10000));
   const progress=Math.min(100,Math.round(Number(state.plan.current_amount)/Math.max(1,Number(state.plan.target_amount))*100));
-  const currentMonth=new Date().toISOString().slice(0,7);
+  const currentMonth=seoulMonthKey();
   const allocations=state.enrolled_products.map((product)=>{
     const paid=state.contributions
       .filter(x=>x.product_name===product.product_name&&x.contributed_at.slice(0,7)===currentMonth)
@@ -680,7 +683,7 @@ export default function SavingsPrototype({user,onSignOut,initialTab="home"}:{use
   const [selectedProduct,setSelectedProduct]=useState<ProductView|null>(null);
   const [notice,setNotice]=useState<string|null>(null);
   const [contributionOpen,setContributionOpen]=useState(false);
-  const [contribution,setContribution]=useState({productName:"",amount:"",date:new Date().toISOString().slice(0,10)});
+  const [contribution,setContribution]=useState({productName:"",amount:"",date:seoulDateKey()});
   const [enrollmentAmount,setEnrollmentAmount]=useState("");
   const [planEditOpen,setPlanEditOpen]=useState(false);
   const [replanning,setReplanning]=useState(false);
@@ -753,9 +756,9 @@ export default function SavingsPrototype({user,onSignOut,initialTab="home"}:{use
         .sort((a,b)=>(a.recommendation?.rank??999)-(b.recommendation?.rank??999))
     : items;
   useEffect(()=>{if(selectedProduct)setEnrollmentAmount(String(Math.min(selectedProduct.maxMonthly??selectedProduct.minMonthly,Math.max(selectedProduct.minMonthly,200000))))},[selectedProduct]);
-  const openContribution=()=>{const first=userState?.enrolled_products?.[0];setContribution({productName:first?.product_name??"",amount:first?.monthly_amount?String(first.monthly_amount):"",date:new Date().toISOString().slice(0,10)});setContributionOpen(true);};
+  const openContribution=()=>{const first=userState?.enrolled_products?.[0];setContribution({productName:first?.product_name??"",amount:first?.monthly_amount?String(first.monthly_amount):"",date:seoulDateKey()});setContributionOpen(true);};
   const recordContribution=async()=>{const amount=Number(contribution.amount.replace(/,/g,""));if(!contribution.productName){setNotice("먼저 적금 찾기에서 신청한 상품을 추가해주세요.");return;}if(!Number.isInteger(amount)||amount<=0){setNotice("올바른 납입 금액을 입력해주세요.");return;}try{await addSavingsContribution(clientId,contribution.productName,amount,contribution.date);await reloadState();setContributionOpen(false);setNotice("납입 기록이 저장되고 총 저축 자산에 반영됐어요.");}catch(e){setNotice(e instanceof Error?e.message:"저장에 실패했습니다");}};
-  const quickPay=async(product:UserSavingsState["enrolled_products"][number])=>{if(!userState)return;const productPayments=userState.contributions.filter(x=>x.product_name===product.product_name);const amount=product.contribution_type==="step_up"?Number(product.monthly_amount??0)+Number(product.installment_step_amount??0)*productPayments.length:Number(product.monthly_amount??0);if(!Number.isInteger(amount)||amount<=0){setNotice("약정 납입액이 없어요. 상세 기록에서 금액을 입력해주세요.");openContribution();return;}try{await addSavingsContribution(clientId,product.product_name,amount,new Date().toISOString().slice(0,10));await reloadState();setNotice(`${product.product_name}\n\n이번 달 ${amount.toLocaleString()}원 납입을 기록했어요.`);}catch(e){setNotice(e instanceof Error?e.message:"납입 기록 저장에 실패했습니다");}};
+  const quickPay=async(product:UserSavingsState["enrolled_products"][number])=>{if(!userState)return;const productPayments=userState.contributions.filter(x=>x.product_name===product.product_name);const amount=product.contribution_type==="step_up"?Number(product.monthly_amount??0)+Number(product.installment_step_amount??0)*productPayments.length:Number(product.monthly_amount??0);if(!Number.isInteger(amount)||amount<=0){setNotice("약정 납입액이 없어요. 상세 기록에서 금액을 입력해주세요.");openContribution();return;}try{await addSavingsContribution(clientId,product.product_name,amount,seoulDateKey());await reloadState();setNotice(`${product.product_name}\n\n이번 달 ${amount.toLocaleString()}원 납입을 기록했어요.`);}catch(e){setNotice(e instanceof Error?e.message:"납입 기록 저장에 실패했습니다");}};
   const enrollProduct=async(p:ProductView)=>{const amount=Number(enrollmentAmount);if(!Number.isInteger(amount)||amount<p.minMonthly||(p.maxMonthly!==null&&amount>p.maxMonthly)){setNotice(`납입액은 ${p.minMonthly.toLocaleString()}원${p.maxMonthly?`~${p.maxMonthly.toLocaleString()}원`:" 이상"}으로 입력해주세요.`);return;}try{await addEnrolledProduct(clientId,{product_id:p.id,product_name:p.name,bank:p.org,status:"가입완료",interest_rate:p.rate,monthly_amount:amount,contribution_type:p.contributionType,payment_frequency:p.paymentFrequency,min_amount:p.minMonthly,max_amount:p.maxMonthly??undefined,installment_step_amount:p.installmentStep??undefined});await reloadState();setSelectedProduct(null);setNotice("가입 조건과 약정 납입액을 플랜에 반영했어요.");}catch(e){setNotice(e instanceof Error?e.message:"상품을 추가하지 못했습니다.");}};
   // 정책 카드를 열면 지원 내용·신청 기간·자격 판정 사유를 정리해 보여준다.
   const openPolicy=(p:YouthPolicy)=>{
@@ -772,7 +775,7 @@ export default function SavingsPrototype({user,onSignOut,initialTab="home"}:{use
   const toggleSaved=async(p:ProductView)=>{if(!userState)return;const saved=!userState.saved_product_ids.includes(p.id);try{await setSavedProduct(clientId,p.id,saved);await reloadState();setNotice(saved?"관심 상품에 저장했어요.":"관심 상품에서 삭제했어요.");}catch(e){setNotice(e instanceof Error?e.message:"저장 상태를 변경하지 못했습니다.");}};
   const openPlanEdit=()=>{if(!userState)return;setPlanDraft({target:String(userState.plan.target_amount),monthly:String(userState.plan.monthly_target),current:String(userState.plan.current_amount),starts:Object.fromEntries(userState.enrolled_products.map(x=>[x.product_id,x.started_at?.slice(0,7)??""]))});setPlanEditOpen(true);};
   const savePlan=async()=>{if(!userState)return;const target=Number(planDraft.target),current=Number(planDraft.current),monthly=Number(planDraft.monthly);if(!Number.isInteger(target)||target<=0||!Number.isInteger(current)||current<0||current>target||!Number.isInteger(monthly)||monthly<10000){setNotice("목표 금액, 현재 자산, 월 저축액을 다시 확인해주세요.");return;}try{await updateSavingsPlan(clientId,{target_amount:target,monthly_target:monthly,current_amount:current});await Promise.all(userState.enrolled_products.filter(x=>planDraft.starts[x.product_id]).map(x=>updateEnrolledProduct(clientId,x.product_id,{started_at:`${planDraft.starts[x.product_id]}-01`})));await reloadState();setPlanEditOpen(false);setNotice("목표와 월 저축액을 플랜에 반영했어요.");}catch(e){setNotice(e instanceof Error?e.message:"플랜을 변경하지 못했습니다.");}};
-  const openRecords=()=>{if(!userState)return;const month=new Date().toISOString().slice(0,7);setRecordDrafts(Object.fromEntries(userState.contributions.filter(x=>x.contributed_at.slice(0,7)===month).map(x=>[x.id,{product_name:x.product_name,amount:String(x.amount),contributed_at:x.contributed_at}])));setRecordsOpen(true);};
+  const openRecords=()=>{if(!userState)return;const month=seoulMonthKey();setRecordDrafts(Object.fromEntries(userState.contributions.filter(x=>x.contributed_at.slice(0,7)===month).map(x=>[x.id,{product_name:x.product_name,amount:String(x.amount),contributed_at:x.contributed_at}])));setRecordsOpen(true);};
   const saveRecord=async(id:string)=>{const draft=recordDrafts[id],amount=Number(draft.amount);if(!Number.isInteger(amount)||amount<=0){setNotice("납입 금액을 다시 확인해주세요.");return;}try{await updateSavingsContribution(clientId,id,{...draft,amount});await reloadState();setNotice("납입 기록을 수정했어요.");}catch(e){setNotice(e instanceof Error?e.message:"기록을 수정하지 못했습니다.");}};
   const removeRecord=async(id:string)=>{if(!window.confirm("이 납입 기록을 삭제할까요?"))return;try{await deleteSavingsContribution(clientId,id);await reloadState();setRecordDrafts(x=>{const next={...x};delete next[id];return next});setNotice("납입 기록을 삭제했어요.");}catch(e){setNotice(e instanceof Error?e.message:"기록을 삭제하지 못했습니다.");}};
   const terminateProduct=async(reason:string,payout:number)=>{if(!userState||!terminationProduct)return;const principal=userState.contributions.filter(x=>x.product_name===terminationProduct.product_name).reduce((sum,x)=>sum+Number(x.amount),0);try{await updateEnrolledProduct(clientId,terminationProduct.product_id,{status:"중도해지",ended_at:new Date().toISOString().slice(0,10),termination_reason:reason,termination_payout:payout});if(payout!==principal)await updateSavingsPlan(clientId,{target_amount:Number(userState.plan.target_amount),monthly_target:Number(userState.plan.monthly_target),current_amount:Math.max(0,Number(userState.plan.current_amount)+payout-principal)});await reloadState();setTerminationProduct(null);setNotice("중도해지를 반영하고 목표 기간과 예상 이자를 다시 계산했어요.");}catch(e){setNotice(e instanceof Error?e.message:"중도해지를 반영하지 못했습니다.");}};
