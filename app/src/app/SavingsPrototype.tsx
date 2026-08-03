@@ -534,7 +534,7 @@ function BenefitsPage({profile,onNotifications,onOpen}:{profile:UserSavingsState
       ) : (
         <>
           {eligibleTotal>0 && (
-            <p className="sp-benefits-summary">지원 조건을 충족하는 정책이 <b>{eligibleTotal}건</b> 있어요.</p>
+            <p className="sp-benefits-summary">거주 지역과 조건에 맞는 정책이 <b>{eligibleTotal}건</b> 있어요.</p>
           )}
           <div className="sp-chips">
             {categories.map(x=><button key={x} className={category===x?"on":""} onClick={()=>setCategory(x)}>{x}</button>)}
