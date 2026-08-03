@@ -51,7 +51,7 @@ import {
 import PlanPrototype from "./PlanPrototype";
 import SavingsPlanV2Prototype from "./SavingsPlanV2Prototype";
 import { addMonthsToDateKey, previousSeoulMonthKey, seoulDateKey, seoulMonthKey } from "./lib/dateKeys";
-import { estimatedAfterTaxInterest } from "./lib/planMetrics.mjs";
+import { estimatedAfterTaxInterest, reconcileCurrentAssets } from "./lib/planMetrics.mjs";
 
 type Tab = "home" | "find" | "plan" | "benefits" | "my";
 type ProductView = {
@@ -696,7 +696,7 @@ export default function SavingsPrototype({user,onSignOut,initialTab="home"}:{use
   const clientId=user.id;
   // 세션 만료(AuthExpiredError)면 api 계층이 이미 로그아웃 처리해 AuthGate가 로그인 화면을 띄운다.
   // 여기서는 unhandled rejection만 막고 로딩 상태를 푼다.
-  const reloadState=()=>fetchUserSavingsState(clientId).then(setUserState).catch(()=>undefined).finally(()=>setStateLoading(false));
+  const reloadState=()=>fetchUserSavingsState(clientId).then(state=>setUserState(state?{...state,plan:{...state.plan,current_amount:reconcileCurrentAssets(state.plan.current_amount,state.enrolled_products,state.contributions,seoulDateKey())}}:state)).catch(()=>undefined).finally(()=>setStateLoading(false));
   useEffect(() => {
     // 가입 조건이 있는 상품까지 한 번에 받아 화면에서 나눈다.
     // 판정은 백엔드가 youth_joinable로 내려주므로 규칙을 여기서 다시 구현하지 않는다.

@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { accountProgressPercent, accountProjectedValue, afterTaxInterestFromGross, buildAccountSnapshot, calculatePlanMetrics, estimatedAccountAfterTaxInterest, estimatedAfterTaxInterest, monthDiff, remainingPaymentPrincipal } from "./planMetrics.mjs";
+import { accountProgressPercent, accountProjectedValue, afterTaxInterestFromGross, buildAccountSnapshot, calculatePlanMetrics, estimatedAccountAfterTaxInterest, estimatedAfterTaxInterest, monthDiff, reconcileCurrentAssets, remainingPaymentPrincipal } from "./planMetrics.mjs";
 
 const account = (changes={}) => ({ status:"가입완료", monthly:300000, paid:300000, remainingMonths:12, interest:100000, support:0, ...changes });
 const scenarios = [
@@ -71,3 +71,9 @@ const accountScenarios=[
 for(const [name,product,contributions,expected] of accountScenarios){
   test(`내 적금 시나리오 ${name}`,()=>{const actual=snapshot(product,contributions);for(const [key,value] of Object.entries(expected))assert.equal(actual[key],value,`${key} 불일치`)});
 }
+test("저장 총자산 20만 원보다 적금 초기잔액·납입 기록 40만 원이 크면 40만 원으로 보정한다",()=>{
+  assert.equal(reconcileCurrentAssets(200000,[{product_name:"청년도약계좌",opening_balance:200000,status:"가입완료"}],[{product_name:"청년도약계좌",amount:200000,contributed_at:"2026-08-04"}],"2026-08-04"),400000);
+});
+test("별도 자산이 포함된 저장 총자산이 더 크면 저장값을 유지한다",()=>{
+  assert.equal(reconcileCurrentAssets(1000000,[{product_name:"청년도약계좌",opening_balance:200000,status:"가입완료"}],[{product_name:"청년도약계좌",amount:200000,contributed_at:"2026-08-04"}],"2026-08-04"),1000000);
+});

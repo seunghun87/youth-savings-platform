@@ -20,6 +20,7 @@ export function buildAccountSnapshot(input: {
   contributions: Array<{product_name:string;amount:number;contributed_at:string}>;
   currentMonth:string;currentDate:string;
 }): { balance:number;paid:number;monthly:number;status:string;totalMonths:number|null;paidMonths:number;remainingMonths:number;futurePrincipal:number;interest:number;projectionAvailable:boolean };
+export function reconcileCurrentAssets(storedCurrent:unknown,products:Array<{product_name:string;opening_balance?:number;status:string}>,contributions:Array<{product_name:string;amount:number;contributed_at:string}>,currentDate:string):number;
 export function accountProgressPercent(paidMonths: number, totalMonths: number | null): number;
 export function calculatePlanMetrics<T extends PlanMetricAccount>(input: { target:number; current:number; unallocated:number; accounts:T[] }): {
   target:number;current:number;activeAccounts:T[];allocated:number;budget:number;paid:number;

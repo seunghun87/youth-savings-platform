@@ -18,7 +18,7 @@ import {
 } from "lucide-react";
 import "./savings-plan-v2-prototype.css";
 import { addEnrolledProduct, fetchUserSavingsState, updateEnrolledProduct, updateSavingsPlan, type UserSavingsState } from "./lib/api";
-import { accountProgressPercent, accountProjectedValue, buildAccountSnapshot, calculatePlanMetrics } from "./lib/planMetrics.mjs";
+import { accountProgressPercent, accountProjectedValue, buildAccountSnapshot, calculatePlanMetrics, reconcileCurrentAssets } from "./lib/planMetrics.mjs";
 import PlanPrototype from "./PlanPrototype";
 import { seoulDateKey, seoulMonthKey } from "./lib/dateKeys";
 
@@ -101,7 +101,7 @@ export default function SavingsPlanV2Prototype({clientId,live=false,embedded=fal
     [saving,setSaving]=useState(false),
     [userState,setUserState]=useState<UserSavingsState|null>(initialState??null),
     [loading,setLoading]=useState(live&&!initialState);
-  const reload=async()=>{if(!clientId){setLoading(false);return}const next=await fetchUserSavingsState(clientId);setUserState(next);await onChanged?.();setLoading(false)};
+  const reload=async()=>{if(!clientId){setLoading(false);return}const next=await fetchUserSavingsState(clientId);setUserState(next?{...next,plan:{...next.plan,current_amount:reconcileCurrentAssets(next.plan.current_amount,next.enrolled_products,next.contributions,seoulDateKey())}}:next);await onChanged?.();setLoading(false)};
   useEffect(()=>{if(initialState){setUserState(initialState);setLoading(false)}else if(live)reload().catch(()=>setLoading(false))},[live,initialState]);
   const [currentMonth,setCurrentMonth]=useState(seoulMonthKey());
   useEffect(()=>{const timer=window.setInterval(()=>setCurrentMonth(seoulMonthKey()),60_000);return()=>window.clearInterval(timer)},[]);

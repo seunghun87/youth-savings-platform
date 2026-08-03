@@ -77,6 +77,16 @@ export function buildAccountSnapshot({ product, contributions, currentMonth, cur
   return { balance,paid,monthly,status,totalMonths,paidMonths,remainingMonths,futurePrincipal,interest,projectionAvailable:hasMaturity };
 }
 
+export function reconcileCurrentAssets(storedCurrent, products, contributions, currentDate) {
+  const tracked = (products ?? []).filter(product=>product.status!=="중도해지");
+  const names = new Set(tracked.map(product=>product.product_name));
+  const opening = tracked.reduce((sum,product)=>sum+Math.max(0,Number(product.opening_balance)||0),0);
+  const recorded = (contributions ?? [])
+    .filter(row=>names.has(row.product_name)&&row.contributed_at<=currentDate)
+    .reduce((sum,row)=>sum+Math.max(0,Number(row.amount)||0),0);
+  return Math.max(0,Number(storedCurrent)||0,opening+recorded);
+}
+
 export function calculatePlanMetrics({ target, current, unallocated, accounts }) {
   const safeTarget = Math.max(1, Number(target) || 0);
   const safeCurrent = Math.max(0, Number(current) || 0);
