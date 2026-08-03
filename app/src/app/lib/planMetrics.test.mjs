@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { accountProgressPercent, accountProjectedValue, afterTaxInterestFromGross, buildAccountSnapshot, calculatePlanMetrics, estimatedAccountAfterTaxInterest, estimatedAfterTaxInterest, monthDiff, reconcileCurrentAssets, remainingPaymentPrincipal } from "./planMetrics.mjs";
+import { accountProgressPercent, accountProjectedValue, afterTaxInterestFromGross, buildAccountSnapshot, calculatePlanMetrics, estimatedAccountAfterTaxInterest, estimatedAfterTaxInterest, estimatedProjectionAfterTaxInterest, monthDiff, reconcileCurrentAssets, remainingPaymentPrincipal, remainingScheduledPrincipal } from "./planMetrics.mjs";
 
 const account = (changes={}) => ({ status:"가입완료", monthly:300000, paid:300000, remainingMonths:12, interest:100000, support:0, ...changes });
 const scenarios = [
@@ -50,7 +50,7 @@ const accountScenarios=[
   ["01 신규 12개월 적금",{},[],{balance:0,paid:0,remainingMonths:12,futurePrincipal:2400000,interest:65988,status:"가입완료"}],
   ["02 이번 달 완납",{},[{product_name:"테스트적금",amount:200000,contributed_at:"2026-08-04"}],{balance:200000,paid:200000,futurePrincipal:2200000,interest:65988}],
   ["03 이번 달 부분납입",{},[{product_name:"테스트적금",amount:100000,contributed_at:"2026-08-04"}],{balance:100000,paid:100000,futurePrincipal:2300000,interest:65988}],
-  ["04 이번 달 초과납입",{},[{product_name:"테스트적금",amount:300000,contributed_at:"2026-08-04"}],{balance:300000,paid:300000,futurePrincipal:2200000}],
+  ["04 이번 달 초과납입",{},[{product_name:"테스트적금",amount:300000,contributed_at:"2026-08-04"}],{balance:300000,paid:300000,futurePrincipal:2100000}],
   ["05 초기 원금만 보유",{opening_balance:1000000,monthly_amount:0},[],{balance:1000000,futurePrincipal:0,interest:50760}],
   ["06 금리 0%",{interest_rate:0},[],{interest:0,futurePrincipal:2400000}],
   ["07 금리 미입력",{interest_rate:null},[],{interest:0}],
@@ -63,7 +63,7 @@ const accountScenarios=[
   ["14 같은 달 분할납입 합산",{},[{product_name:"테스트적금",amount:50000,contributed_at:"2026-08-01"},{product_name:"테스트적금",amount:150000,contributed_at:"2026-08-04"}],{balance:200000,paid:200000,paidMonths:1}],
   ["15 이전 달 납입은 원금만 반영",{},[{product_name:"테스트적금",amount:200000,contributed_at:"2026-07-04"}],{balance:200000,paid:0,paidMonths:1}],
   ["16 음수 납입 데이터 방어",{},[{product_name:"테스트적금",amount:-100000,contributed_at:"2026-08-04"}],{balance:0,paid:0}],
-  ["17 시작일 미입력",{started_at:null},[],{totalMonths:null,projectionAvailable:true,remainingMonths:12}],
+  ["17 시작일 미입력",{started_at:null},[],{totalMonths:null,projectionAvailable:false,remainingMonths:0,futurePrincipal:0,interest:0}],
   ["18 이번 달 만기",{started_at:"2025-08-04",matures_at:"2026-08-25"},[],{remainingMonths:0,futurePrincipal:0}],
   ["19 고액 장기 적금",{monthly_amount:3000000,interest_rate:5,matures_at:"2031-08-04"},[],{remainingMonths:60,futurePrincipal:180000000}],
   ["20 월 약정액 미입력",{monthly_amount:null},[],{monthly:0,futurePrincipal:0,interest:0}],
@@ -76,4 +76,23 @@ test("저장 총자산 20만 원보다 적금 초기잔액·납입 기록 40만 
 });
 test("별도 자산이 포함된 저장 총자산이 더 크면 저장값을 유지한다",()=>{
   assert.equal(reconcileCurrentAssets(1000000,[{product_name:"청년도약계좌",opening_balance:200000,status:"가입완료"}],[{product_name:"청년도약계좌",amount:200000,contributed_at:"2026-08-04"}],"2026-08-04"),1000000);
+});
+test("2/13회·월 20만 원·현재 원금 40만 원이면 남은 원금은 220만 원이다",()=>{
+  assert.equal(remainingScheduledPrincipal(200000,13,400000),2200000);
+  const result=buildAccountSnapshot({
+    product:{...baseProduct,started_at:"2026-08-04",matures_at:"2027-09-04"},
+    contributions:[
+      {product_name:"테스트적금",amount:200000,contributed_at:"2026-07-04"},
+      {product_name:"테스트적금",amount:200000,contributed_at:"2026-08-04"},
+    ],
+    currentMonth:"2026-08",currentDate:"2026-08-04",
+  });
+  assert.equal(result.totalMonths,13);
+  assert.equal(result.paidMonths,2);
+  assert.equal(result.balance,400000);
+  assert.equal(result.futurePrincipal,2200000);
+  assert.equal(result.balance+result.futurePrincipal,2600000);
+});
+test("신규 12회 적금의 미래 납입 이자는 12회만 계산한다",()=>{
+  assert.equal(estimatedProjectionAfterTaxInterest({balance:0,monthly:200000,paidThisMonth:0,annualRate:6,remainingMonths:12,futurePrincipal:2400000}),65988);
 });

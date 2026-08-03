@@ -13,6 +13,8 @@ export function monthDiff(from: string, to: string): number;
 export function afterTaxInterestFromGross(grossInterest:unknown,taxRate?:unknown): { pretaxInterest:number;tax:number;afterTaxInterest:number };
 export function estimatedAfterTaxInterest(monthly: unknown, annualRate: unknown, remainingMonths: unknown): number;
 export function remainingPaymentPrincipal(monthly: unknown, paidThisMonth: unknown, remainingMonths: unknown): number;
+export function remainingScheduledPrincipal(monthly:unknown,totalMonths:unknown,currentPrincipal:unknown):number;
+export function estimatedProjectionAfterTaxInterest(input:{balance:unknown;monthly:unknown;paidThisMonth:unknown;annualRate:unknown;remainingMonths:unknown;futurePrincipal:unknown}):number;
 export function estimatedAccountAfterTaxInterest(input: { balance:unknown; monthly:unknown; paidThisMonth:unknown; annualRate:unknown; remainingMonths:unknown }): number;
 export function accountProjectedValue(account: Partial<PlanMetricAccount> & { balance?:number }): number;
 export function buildAccountSnapshot(input: {

@@ -31,6 +31,33 @@ export function remainingPaymentPrincipal(monthly, paidThisMonth, remainingMonth
   return Math.max(0, payment * futureMonths - Math.min(payment, paid));
 }
 
+export function remainingScheduledPrincipal(monthly, totalMonths, currentPrincipal) {
+  const payment=Math.max(0,Number(monthly)||0);
+  const installments=Math.max(0,Number(totalMonths)||0);
+  const principal=Math.max(0,Number(currentPrincipal)||0);
+  return Math.max(0,payment*installments-principal);
+}
+
+export function estimatedProjectionAfterTaxInterest({ balance, monthly, paidThisMonth, annualRate, remainingMonths, futurePrincipal }) {
+  const principal=Math.max(0,Number(balance)||0);
+  const payment=Math.max(0,Number(monthly)||0);
+  const paid=Math.max(0,Number(paidThisMonth)||0);
+  const months=Math.max(0,Number(remainingMonths)||0);
+  const rate=Math.max(0,Number(annualRate)||0)/100/12;
+  let future=Math.max(0,Number(futurePrincipal)||0);
+  const currentOutstanding=Math.min(future,Math.max(0,payment-Math.min(payment,paid)));
+  let gross=(principal+currentOutstanding)*rate*months;
+  future-=currentOutstanding;
+  let offset=1;
+  while(future>0&&offset<=months){
+    const installment=Math.min(payment,future);
+    gross+=installment*rate*Math.max(0,months-offset);
+    future-=installment;
+    offset+=1;
+  }
+  return afterTaxInterestFromGross(gross).afterTaxInterest;
+}
+
 /** 현재 원금과 이번 달 잔여 납입액까지 포함한 만기 전 예상 세후 이자. */
 export function estimatedAccountAfterTaxInterest({ balance, monthly, paidThisMonth, annualRate, remainingMonths }) {
   const principal = Math.max(0, Number(balance) || 0);
@@ -66,15 +93,20 @@ export function buildAccountSnapshot({ product, contributions, currentMonth, cur
     .reduce((sum,row)=>sum+Math.max(0,Number(row.amount)||0),0);
   const monthly = Math.max(0, Number(product.monthly_amount) || 0);
   const hasMaturity = Boolean(product.matures_at);
+  const projectionAvailable = hasMaturity && Boolean(product.started_at);
   const maturityPassed = hasMaturity && product.matures_at < currentDate;
   const status = maturityPassed && ACTIVE_STATUSES.has(product.status) ? "만기완료" : product.status;
   const totalMonths = hasMaturity && product.started_at ? Math.max(1, monthDiff(product.started_at, product.matures_at)) : null;
   const paidMonths = new Set(rows.map(row=>row.contributed_at.slice(0,7))).size;
-  const remainingMonths = hasMaturity && !maturityPassed ? monthDiff(currentMonth,product.matures_at) : 0;
+  const remainingMonths = projectionAvailable && !maturityPassed ? monthDiff(currentMonth,product.matures_at) : 0;
   const active = ACTIVE_STATUSES.has(status);
-  const futurePrincipal = active && hasMaturity ? remainingPaymentPrincipal(monthly,paid,remainingMonths) : 0;
-  const interest = active && hasMaturity ? estimatedAccountAfterTaxInterest({balance,monthly,paidThisMonth:paid,annualRate:product.interest_rate,remainingMonths}) : 0;
-  return { balance,paid,monthly,status,totalMonths,paidMonths,remainingMonths,futurePrincipal,interest,projectionAvailable:hasMaturity };
+  // 약정 총회차와 실제로 남은 달 중 더 작은 범위만 미래 납입으로 잡는다.
+  // 이 제한이 없으면 13회 상품을 14회 납입하는 것처럼 표시될 수 있다.
+  const scheduledRemaining = remainingScheduledPrincipal(monthly,totalMonths,balance);
+  const calendarRemaining = remainingPaymentPrincipal(monthly,paid,remainingMonths);
+  const futurePrincipal = active && projectionAvailable ? Math.min(scheduledRemaining,calendarRemaining) : 0;
+  const interest = active && projectionAvailable ? estimatedProjectionAfterTaxInterest({balance,monthly,paidThisMonth:paid,annualRate:product.interest_rate,remainingMonths,futurePrincipal}) : 0;
+  return { balance,paid,monthly,status,totalMonths,paidMonths,remainingMonths,futurePrincipal,interest,projectionAvailable };
 }
 
 export function reconcileCurrentAssets(storedCurrent, products, contributions, currentDate) {
