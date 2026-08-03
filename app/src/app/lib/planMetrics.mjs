@@ -19,7 +19,9 @@ export function remainingPaymentPrincipal(monthly, paidThisMonth, remainingMonth
   const payment = Math.max(0, Number(monthly) || 0);
   const paid = Math.max(0, Number(paidThisMonth) || 0);
   const futureMonths = Math.max(0, Number(remainingMonths) || 0);
-  return Math.max(0, payment - paid) + payment * futureMonths;
+  // monthDiff(현재월, 만기월)는 이번 달 회차를 포함한 남은 납입 횟수다.
+  // 따라서 이번 달 납입액을 한 회차 더 더하지 않고, 이미 낸 금액만 차감한다.
+  return Math.max(0, payment * futureMonths - Math.min(payment, paid));
 }
 
 /** 현재 원금과 이번 달 잔여 납입액까지 포함한 만기 전 예상 세후 이자. */
@@ -29,10 +31,13 @@ export function estimatedAccountAfterTaxInterest({ balance, monthly, paidThisMon
   const paid = Math.max(0, Number(paidThisMonth) || 0);
   const rate = Math.max(0, Number(annualRate) || 0) / 100 / 12;
   const futureMonths = Math.max(0, Number(remainingMonths) || 0);
-  const outstanding = Math.max(0, payment - paid);
+  const outstanding = Math.max(0, payment - Math.min(payment, paid));
+  // 현재 원금과 이번 달 잔여 납입액은 남은 전체 기간 동안,
+  // 다음 달 이후 납입액은 (n-1)개월부터 1개월까지 이자가 붙는다.
+  const laterPaymentMonths = Math.max(0, futureMonths - 1);
   const gross = principal * rate * futureMonths
-    + outstanding * rate * (futureMonths + 1)
-    + payment * rate * (futureMonths * (futureMonths + 1) / 2);
+    + outstanding * rate * futureMonths
+    + payment * rate * (laterPaymentMonths * (laterPaymentMonths + 1) / 2);
   return Math.floor(gross * (1 - 0.154));
 }
 
