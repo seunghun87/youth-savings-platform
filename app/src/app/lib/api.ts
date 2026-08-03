@@ -277,6 +277,7 @@ export interface YouthPolicy {
   category_large: string | null;
   category_medium: string | null;
   keywords: string | null;
+  zip_cd: string | null;
   supervising_org: string | null;
   operating_org: string | null;
   apply_period: string | null;
@@ -286,20 +287,28 @@ export interface YouthPolicy {
   reason: string | null;
 }
 
+/** /api/youth-policy 응답. items는 limit만큼 잘린 목록, total/eligibleTotal은 limit 적용 전 전체 건수다. */
+export interface YouthPolicyListResult {
+  items: YouthPolicy[];
+  total: number;
+  eligibleTotal: number;
+}
+
 /**
  * 백엔드(/api/youth-policy) 호출. 나이·연소득(만원)을 넘기면 자격 판정과 미충족 사유가
  * 함께 내려오고, 충족 > 확인 필요 > 미충족 순으로 정렬된다.
  * 실패 시 null 반환 — 호출부는 에러 상태로 처리.
  */
 export async function fetchYouthPolicies(
-  params: { age?: number; income?: number; bracket?: number; keyword?: string; limit?: number } = {},
-): Promise<YouthPolicy[] | null> {
+  params: { age?: number; income?: number; bracket?: number; keyword?: string; limit?: number; city?: string } = {},
+): Promise<YouthPolicyListResult | null> {
   const query = new URLSearchParams();
   if (params.age != null) query.set("age", String(params.age));
   if (params.income != null) query.set("income", String(params.income));
   if (params.bracket != null) query.set("bracket", String(params.bracket));
   if (params.keyword) query.set("keyword", params.keyword);
   if (params.limit != null) query.set("limit", String(params.limit));
+  if (params.city) query.set("city", params.city);
 
   try {
     const res = await fetch(`${API_BASE_URL}/api/youth-policy?${query.toString()}`);
