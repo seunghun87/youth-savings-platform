@@ -517,19 +517,22 @@ function BenefitsPage({profile,onNotifications,onOpen}:{profile:UserSavingsState
   const [loading,setLoading]=useState(true);
   const [failed,setFailed]=useState(false);
 
-  // 나이·연소득(만원)을 넘기면 백엔드가 자격 판정과 미충족 사유까지 함께 내려준다
+  // 나이·연소득(만원)·거주지역을 넘기면 백엔드가 자격 판정과 지역 매칭까지 함께 처리해 내려준다
   useEffect(()=>{
     let active=true;
     setLoading(true);setFailed(false);
     fetchYouthPolicies({age:profile.age,income:profile.annual_income,city:profile.city,limit:50})
-      .then(data=>{if(!active)return;if(data){setPolicies(data.items);setEligibleTotal(data.eligibleTotal)}else setFailed(true)})
+      .then(data=>{if(!active)return;if(data){setPolicies(data.items);setEligibleTotal(data.eligibleTotal);}else setFailed(true)})
       .finally(()=>{if(active)setLoading(false)});
     return ()=>{active=false};
   },[profile.age,profile.annual_income,profile.city]);
 
-  const policyCategories=(policy:YouthPolicy)=>policy.category_large?policy.category_large.split(", "):[];
+  // category_large는 "일자리, 교육"처럼 여러 분류가 콤마로 같이 올 수 있어(백엔드에서 중복은
+  // 이미 제거됨), 탭 목록·필터 모두 콤마로 나눈 개별 분류 단위로 판단해 두 분류 모두에
+  // 속하는 정책이 양쪽 탭에서 다 보이게 한다.
+  const policyCategories=(p:YouthPolicy)=>p.category_large?p.category_large.split(", "):[];
   const categories=["전체",...Array.from(new Set((policies??[]).flatMap(policyCategories)))];
-  const shown=(policies??[]).filter(policy=>(category==="전체"||policyCategories(policy).includes(category))&&(!eligibleOnly||policy.status==="충족"));
+  const shown=(policies??[]).filter(p=>(category==="전체"||policyCategories(p).includes(category))&&(!eligibleOnly||p.status==="충족"));
 
   return (
     <>

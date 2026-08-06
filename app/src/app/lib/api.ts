@@ -309,6 +309,7 @@ export interface YouthPolicy {
   reason: string | null;
 }
 
+/** /api/youth-policy 응답. items는 limit만큼 잘린 목록, total/eligibleTotal은 limit 적용 전 전체 건수다. */
 export interface YouthPolicyListResult {
   items: YouthPolicy[];
   total: number;
